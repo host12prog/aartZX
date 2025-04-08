@@ -10,3 +10,4 @@ build/
 *.out
 *.app
 Makefile
+.DS_Store

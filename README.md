@@ -9,6 +9,7 @@ a modern ZX Spectrum emulator in C, C++, SDL2 and Dear ImGui
 - Modular interface using Dear ImGui
 - Memory Debugger with customizable Read/Write/Execution labels!
 - Customizable AY stereo settings
+- Rewind emulation (press backspace key in Emulator Window)
 - open-source the zlib license.
 
 ## legal
