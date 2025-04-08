@@ -1,0 +1,313 @@
+// I/O emulation
+
+void EMU_IMGUI_process_event(SDL_Event *event);
+extern bool EMU_IMGUI_is_emu_focused();
+
+// draw one scanline of graphics
+static void draw_ULA_scanline(uint16_t LY) {
+    uint16_t ypos = LY>>3; // get tile row number
+    for (size_t x = 0; x < 32<<3; x++) { // draw 32 8x8 chars
+        // get attribute
+        register uint16_t addr = ((x>>3)|(ypos<<5))+6144;
+        uint8_t attr = mem[addr|((ula.gfx_sel?7:5)<<14)];
+
+        // get tile data
+        register uint16_t tile_addr = ((x>>3)|((ypos&7)<<5))|((LY&7)<<8)+((ypos>>3)<<11);
+        uint8_t tile = mem[tile_addr|((ula.gfx_sel?7:5)<<14)];
+
+        // now let's render it >:3
+        if ((attr&0x80) && (ula.frame&32)) { // if flash attribute is enabled
+            uint8_t pix = (tile>>(7-(x&7)))&1;
+            if (!pix) pixels[(LY+32)*320+x+32] = RGB_pal[(attr&7)|((attr&64)>>3)];
+            else pixels[(LY+32)*320+x+32] = RGB_pal[(attr>>3&7)|((attr&64)>>3)];
+        } else {
+            uint8_t pix = (tile>>(7-(x&7)))&1;
+            if (pix) pixels[(LY+32)*320+x+32] = RGB_pal[(attr&7)|((attr&64)>>3)];
+            else pixels[(LY+32)*320+x+32] = RGB_pal[(attr>>3&7)|((attr&64)>>3)];
+        }
+    }
+}
+
+// draw the borders (overwrites pixel data!!)
+static void draw_ULA_border(uint16_t LY) {
+    for (size_t x = 0; x < 320; x++) { // draw border
+        pixels[LY*320+x] = RGB_pal[ula.ULA_FE&7];
+    }
+}
+
+// keycodes for keyboard input
+const SDL_Keycode sdl_key_matrix_codes[40] = {
+    SDLK_LSHIFT, SDLK_z, SDLK_x, SDLK_c, SDLK_v, 
+    SDLK_a, SDLK_s, SDLK_d, SDLK_f, SDLK_g,
+    SDLK_q, SDLK_w, SDLK_e, SDLK_r, SDLK_t,
+    SDLK_1, SDLK_2, SDLK_3, SDLK_4, SDLK_5,
+    SDLK_0, SDLK_9, SDLK_8, SDLK_7, SDLK_6,
+    SDLK_p, SDLK_o, SDLK_i, SDLK_u, SDLK_y,
+    SDLK_RETURN, SDLK_l, SDLK_k, SDLK_j, SDLK_h,
+    SDLK_SPACE, SDLK_LCTRL, SDLK_m, SDLK_n, SDLK_b,  
+};
+
+// alternative keycodes...
+const SDL_Keycode sdl_key_matrix_codes_alt[40] = {
+    SDLK_RSHIFT, -1, -1, -1, -1, 
+    -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1,
+    -1, -1, -1, -1, -1,
+    SDLK_RETURN, -1, -1, -1, -1,
+    -1, SDLK_RCTRL, -1, -1, -1 
+};
+
+const SDL_Keycode sdl_arrow_codes[4] = {
+    SDLK_LEFT, SDLK_RIGHT, SDLK_DOWN, SDLK_UP
+};
+
+const int sdl_arrow_matrix[4] = {
+    19, 22, 24, 23
+};
+
+static inline void ULA_update_arrow_keys() {
+    // clear buffer
+    memcpy(ula.key_matrix,ula.key_matrix_buf,sizeof(ula.key_matrix));
+    for (int i = 0; i < 4; i++) { // check arrow keys
+        if (ula.key_matrix_buf_arrow[i]) {
+            ula.key_matrix[0] |= 1;
+            ula.key_matrix[sdl_arrow_matrix[i]] |= 1;
+        }
+    }
+}
+
+void do_rewind();
+void reset_audio_buffer_and_unpause();
+
+// advances the ULA emulation per scanline
+static inline void advance_ULA() {
+    ula.cycles -= 228;
+    if (ula.scanline == 0) { // fire VBLANK at the start of each frame
+        regs.has_int = 0x38;
+        // TODO: remove this line
+        // regs.r = 255;
+    }
+
+    if (ula.scanline >= 31 && ula.scanline < 287) {
+        draw_ULA_border(ula.scanline-31);
+    }
+
+    if (ula.scanline >= 63 && ula.scanline < 255) {
+        draw_ULA_scanline(ula.scanline-63);
+    }
+
+    if (ula.scanline == 288) {
+        ula.did_frame = true;
+
+        SDL_Event event;
+        while (SDL_PollEvent(&event)) {
+            EMU_IMGUI_process_event(&event);
+            switch (event.type) {
+                case SDL_QUIT:
+                    ula.quit = true;
+                    break;
+                case SDL_KEYDOWN: {
+                    if (!EMU_IMGUI_is_emu_focused()) break;
+
+                    if (event.key.keysym.sym == SDLK_BACKSPACE) {
+                        rewind_pressed = true;
+                    }
+
+                    for (int i = 0; i < 40; i++) { // check for normal keys
+                        if (event.key.keysym.sym == sdl_key_matrix_codes[i] ||
+                            event.key.keysym.sym == sdl_key_matrix_codes_alt[i]) {
+                            ula.key_matrix_buf[i] = 1;
+                            break;
+                        }
+                    }
+
+                    for (int i = 0; i < 4; i++) { // check arrow keys
+                        if (event.key.keysym.sym == sdl_arrow_codes[i]) {
+                            ula.key_matrix_buf_arrow[i] = 1;
+                            break;
+                        }
+                    }
+                    break;
+                }
+                case SDL_KEYUP: {
+                    if (!EMU_IMGUI_is_emu_focused()) break;
+
+                    if (event.key.keysym.sym == SDLK_BACKSPACE) {
+                        rewind_pressed = false;
+                        reset_audio_buffer_and_unpause();
+                        memset(ula.key_matrix_buf,0,sizeof(ula.key_matrix_buf));
+                        memset(ula.key_matrix_buf_arrow,0,sizeof(ula.key_matrix_buf_arrow));
+                    }
+
+                    for (int i = 0; i < 40; i++) {
+                        if (event.key.keysym.sym == sdl_key_matrix_codes[i] ||
+                            event.key.keysym.sym == sdl_key_matrix_codes_alt[i]) {
+                            ula.key_matrix_buf[i] = 0;
+                            break;
+                        }
+                    }
+
+                    for (int i = 0; i < 4; i++) { // check arrow keys
+                        if (event.key.keysym.sym == sdl_arrow_codes[i]) {
+                            ula.key_matrix_buf_arrow[i] = 0;
+                            break;
+                        }
+                    }
+                    break;
+                }
+            }
+        }
+
+        ULA_update_arrow_keys();
+
+        #ifdef VIDEO_SYNC
+            do_rewind();
+            int now = SDL_GetTicks();
+            if (ula.time <= now) now = 0;
+            else now = ula.time - now;
+            SDL_Delay(now);
+            ula.time += 20;
+        #endif
+
+        ula.frame = (ula.frame+1)&63;
+    }
+
+    ula.scanline = (ula.scanline+1)%311;
+}
+
+void update_ayumi_state(struct ayumi* ay, uint8_t* r, uint8_t addr);
+
+#ifdef AY_EMULATION
+  #ifdef AY_TURBOSOUND
+    uint8_t AY_regs[32];
+  #else
+    uint8_t AY_regs[16];
+  #endif
+uint8_t AY_ind;
+struct ayumi AY_chip1;
+  #ifdef AY_TURBOSOUND
+    struct ayumi AY_chip2;
+  #endif
+#endif
+
+static inline uint8_t inZ80(uint16_t addr) {
+    #ifdef AY_EMULATION
+        if ((addr&0x8000) && !(addr&2)) {
+            #ifdef AY_TURBOSOUND
+                return AY_regs[AY_ind&0x1f];
+            #else
+                return AY_regs[AY_ind&0xf];
+            #endif
+        }
+    #endif
+    if (addr&1) {
+        return 0;
+    } else {
+        if (ula.do_contended) add_contended_cycles();
+        // read keyboard matrix
+        int key = 31;
+        for (size_t bit = 0; bit < 8; bit++){
+            if (!((addr>>8)&(1<<bit))) {
+                int temp_key = ula.key_matrix[bit*5+0];
+                temp_key |= ula.key_matrix[bit*5+1]<<1;
+                temp_key |= ula.key_matrix[bit*5+2]<<2;
+                temp_key |= ula.key_matrix[bit*5+3]<<3;
+                temp_key |= ula.key_matrix[bit*5+4]<<4;
+                key ^= temp_key; // xor with key
+            }
+        }
+        return key;
+    }
+}
+
+static inline void outZ80(uint16_t addr, uint8_t val) {
+    if (!(addr&0x8000) && !(addr&2)) {
+        // paging
+        // 00DRGMMM
+        // D = disable memory paging until reset
+        // R = rom bank select
+        // G = gfx bank select
+        // M = ram bank select
+        if (ula.bank_reg&32) return; // disabled paging until reset
+        ula.bank_reg = val;
+        ula.rom_sel = val>>4&1;
+        ula.ram_bank = val&7;
+        ula.gfx_sel = val>>3&1;
+    } 
+    #ifdef AY_EMULATION
+    else if ((addr&0x8000) && !(addr&2)) {
+        if (addr & 0x4000) {
+            // turbosound chip
+            if (val >= 16) {
+                // set AY chip (for TS)
+                AY_ind = (AY_ind&0x0f)|((val&0xf)<<4);
+            } else {
+                AY_ind = (AY_ind&0xf0)|(val&0xf);
+            }
+        } else {
+            #ifdef AY_TURBOSOUND
+                // write reg
+                AY_regs[AY_ind&0x1f] = val;
+                if (AY_ind&0x10)
+                    update_ayumi_state(&AY_chip2,&AY_regs[16],AY_ind&0xf);
+                else
+                    update_ayumi_state(&AY_chip1,AY_regs,AY_ind&0xf);
+            #else
+                // write reg
+                AY_regs[AY_ind&0xf] = val;
+                update_ayumi_state(&AY_chip1,AY_regs,AY_ind&0xf);
+            #endif
+        }
+    } 
+    #endif
+    else if ((addr&1) == 0) {
+        if (ula.do_contended) add_contended_cycles();
+        ula.ULA_FE = val;
+    }
+}
+
+void update_ayumi_state(struct ayumi* ay, uint8_t* r, uint8_t addr) {
+  switch (addr&0xf) {
+    case 0:
+    case 1:
+        ayumi_set_tone(ay, 0, (r[1] << 8) | r[0]);
+        break;
+    case 2:
+    case 3:
+        ayumi_set_tone(ay, 1, (r[3] << 8) | r[2]);
+        break;
+    case 4:
+    case 5:
+        ayumi_set_tone(ay, 2, (r[5] << 8) | r[4]);
+        break;
+    case 6:
+        ayumi_set_noise(ay, r[6]);
+        break;
+
+    case 7:
+    case 8:
+    case 9:
+    case 10:
+        ayumi_set_mixer(ay, 0, r[7] & 1, (r[7] >> 3) & 1, r[8] >> 4);
+        ayumi_set_mixer(ay, 1, (r[7] >> 1) & 1, (r[7] >> 4) & 1, r[9] >> 4);
+        ayumi_set_mixer(ay, 2, (r[7] >> 2) & 1, (r[7] >> 5) & 1, r[10] >> 4);
+        ayumi_set_volume(ay, 0, r[8] & 0xf);
+        ayumi_set_volume(ay, 1, r[9] & 0xf);
+        ayumi_set_volume(ay, 2, r[10] & 0xf);
+        break;
+
+    case 11:
+    case 12:
+        ayumi_set_envelope(ay, (r[12] << 8) | r[11]);
+        break;
+
+    case 13: {
+        ayumi_set_envelope_shape(ay, r[13]);
+        break;
+    }
+    default:
+        break;
+  }
+}

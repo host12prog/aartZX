@@ -1,0 +1,12 @@
+.vscode/
+build/
+*.o
+*.obj
+*.elf
+*.a
+*.lib
+*.map
+*.exe
+*.out
+*.app
+Makefile
