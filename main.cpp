@@ -305,7 +305,6 @@ void load_settings() {
     std::ifstream f(filename);
     if (!f) return;
     std::string value;
-    ssize_t linelen;
     getline(f,value); if (!value.empty()) audio_volume = std::stof(value);
     getline(f,value); if (!value.empty()) io.FontGlobalScale = std::stof(value);
     getline(f,value); if (!value.empty()) selected_memory_type = std::stoi(value)%IM_ARRAYSIZE(memory_types);
