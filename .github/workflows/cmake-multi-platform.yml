@@ -66,24 +66,12 @@ jobs:
     - name: Set package identifier
       id: package-identify
       run: |
-        package_name="aartZX-${GITHUB_SHA}"
+        package_name="aartZX-${GITHUB_SHA}-${{ matrix.os }}"
         package_ext=""
-        if [ '${{ runner.os }}' == 'Windows' ]; then
-          package_name="${package_name}-Windows"
-          package_name="${package_name}-${{ matrix.config.arch }}"
-          package_ext="" # Directory, uploading will automatically zip it
-        elif [ '${{ runner.os }}' == 'macOS' ]; then
-          package_name="${package_name}-macOS-${{ matrix.config.arch }}"
-          package_ext=""
-        else
-          package_name="${package_name}-Linux-${{ matrix.config.arch }}"
-          package_ext=""
-        fi
         echo "Package identifier: ${package_name}"
         echo "Package file: ${package_name}${package_ext}"
         echo "id=${package_name}" >> $GITHUB_OUTPUT
         echo "filename=${package_name}${package_ext}" >> $GITHUB_OUTPUT
-
 
     - name: Get SDL2
       uses: libsdl-org/setup-sdl@v1
@@ -104,7 +92,7 @@ jobs:
       id: strings
       shell: bash
       run: |
-        echo "build-output-dir=${{ github.workspace }}/build" >> "$GITHUB_OUTPUT"
+        echo "build-output-dir=${PWD}/build" >> "$GITHUB_OUTPUT"
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
@@ -114,7 +102,7 @@ jobs:
         -DCMAKE_CXX_COMPILER=${{ matrix.cpp_compiler }}
         -DCMAKE_C_COMPILER=${{ matrix.c_compiler }}
         -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        -S ${{ github.workspace }}
+        -S ${PWD}
 
     - name: Build
       # Build your program with the given configuration. Note that --config is needed because the default Windows generator is a multi-config generator (Visual Studio generator).
