@@ -125,6 +125,7 @@ jobs:
         binPath=${{ steps.strings.outputs.build-output-dir }}
         mkdir ${{ steps.package-identify.outputs.filename }}
         pushd ${{ steps.package-identify.outputs.filename }}
+        ls ../${binPath}
         cp -v ../${binPath}/aartZX.app aartZX.app
         popd
         
