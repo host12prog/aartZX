@@ -2,6 +2,8 @@
 
 void EMU_IMGUI_process_event(SDL_Event *event);
 extern bool EMU_IMGUI_is_emu_focused();
+void do_rewind();
+void reset_audio_buffer_and_unpause();
 
 // draw one scanline of graphics
 static void draw_ULA_scanline(uint16_t LY) {
@@ -67,6 +69,8 @@ const int sdl_arrow_matrix[4] = {
     19, 22, 24, 23
 };
 
+bool paused_prev;
+
 static inline void ULA_update_arrow_keys() {
     // clear buffer
     memcpy(ula.key_matrix,ula.key_matrix_buf,sizeof(ula.key_matrix));
@@ -78,8 +82,86 @@ static inline void ULA_update_arrow_keys() {
     }
 }
 
-void do_rewind();
-void reset_audio_buffer_and_unpause();
+static void do_events() {
+    SDL_Event event;
+    while (SDL_PollEvent(&event)) {
+        EMU_IMGUI_process_event(&event);
+        switch (event.type) {
+            case SDL_QUIT:
+                ula.quit = true;
+                break;
+            case SDL_KEYDOWN: {
+                if (!EMU_IMGUI_is_emu_focused()) break;
+
+                if (event.key.keysym.sym == SDLK_BACKSPACE) {
+                    rewind_pressed = true;
+                }
+
+                if (event.key.keysym.sym == SDLK_ESCAPE) {
+                    pause_pressed = true;
+                }
+
+                for (int i = 0; i < 40; i++) { // check for normal keys
+                    if (event.key.keysym.sym == sdl_key_matrix_codes[i] ||
+                        event.key.keysym.sym == sdl_key_matrix_codes_alt[i]) {
+                        ula.key_matrix_buf[i] = 1;
+                        break;
+                    }
+                }
+
+                for (int i = 0; i < 4; i++) { // check arrow keys
+                    if (event.key.keysym.sym == sdl_arrow_codes[i]) {
+                        ula.key_matrix_buf_arrow[i] = 1;
+                        break;
+                    }
+                }
+                break;
+            }
+            case SDL_KEYUP: {
+                if (!EMU_IMGUI_is_emu_focused()) break;
+
+                if (event.key.keysym.sym == SDLK_BACKSPACE) {
+                    rewind_pressed = false;
+                    reset_audio_buffer_and_unpause();
+                    memset(ula.key_matrix_buf,0,sizeof(ula.key_matrix_buf));
+                    memset(ula.key_matrix_buf_arrow,0,sizeof(ula.key_matrix_buf_arrow));
+                }
+
+                if (event.key.keysym.sym == SDLK_ESCAPE) {
+                    pause_pressed = false;
+                }
+
+                for (int i = 0; i < 40; i++) {
+                    if (event.key.keysym.sym == sdl_key_matrix_codes[i] ||
+                        event.key.keysym.sym == sdl_key_matrix_codes_alt[i]) {
+                        ula.key_matrix_buf[i] = 0;
+                        break;
+                    }
+                }
+
+                for (int i = 0; i < 4; i++) { // check arrow keys
+                    if (event.key.keysym.sym == sdl_arrow_codes[i]) {
+                        ula.key_matrix_buf_arrow[i] = 0;
+                        break;
+                    }
+                }
+                break;
+            }
+        }
+    }
+
+    ULA_update_arrow_keys();
+ 
+    if (pause_pressed != paused_prev && pause_pressed == true) {
+        paused = !paused;
+        audio_paused = paused;
+        if (!paused) {
+            reset_audio_buffer_and_unpause();
+        }
+    }
+
+    paused_prev = pause_pressed;
+}
 
 // advances the ULA emulation per scanline
 static inline void advance_ULA() {
@@ -100,68 +182,7 @@ static inline void advance_ULA() {
 
     if (ula.scanline == 288) {
         ula.did_frame = true;
-
-        SDL_Event event;
-        while (SDL_PollEvent(&event)) {
-            EMU_IMGUI_process_event(&event);
-            switch (event.type) {
-                case SDL_QUIT:
-                    ula.quit = true;
-                    break;
-                case SDL_KEYDOWN: {
-                    if (!EMU_IMGUI_is_emu_focused()) break;
-
-                    if (event.key.keysym.sym == SDLK_BACKSPACE) {
-                        rewind_pressed = true;
-                    }
-
-                    for (int i = 0; i < 40; i++) { // check for normal keys
-                        if (event.key.keysym.sym == sdl_key_matrix_codes[i] ||
-                            event.key.keysym.sym == sdl_key_matrix_codes_alt[i]) {
-                            ula.key_matrix_buf[i] = 1;
-                            break;
-                        }
-                    }
-
-                    for (int i = 0; i < 4; i++) { // check arrow keys
-                        if (event.key.keysym.sym == sdl_arrow_codes[i]) {
-                            ula.key_matrix_buf_arrow[i] = 1;
-                            break;
-                        }
-                    }
-                    break;
-                }
-                case SDL_KEYUP: {
-                    if (!EMU_IMGUI_is_emu_focused()) break;
-
-                    if (event.key.keysym.sym == SDLK_BACKSPACE) {
-                        rewind_pressed = false;
-                        reset_audio_buffer_and_unpause();
-                        memset(ula.key_matrix_buf,0,sizeof(ula.key_matrix_buf));
-                        memset(ula.key_matrix_buf_arrow,0,sizeof(ula.key_matrix_buf_arrow));
-                    }
-
-                    for (int i = 0; i < 40; i++) {
-                        if (event.key.keysym.sym == sdl_key_matrix_codes[i] ||
-                            event.key.keysym.sym == sdl_key_matrix_codes_alt[i]) {
-                            ula.key_matrix_buf[i] = 0;
-                            break;
-                        }
-                    }
-
-                    for (int i = 0; i < 4; i++) { // check arrow keys
-                        if (event.key.keysym.sym == sdl_arrow_codes[i]) {
-                            ula.key_matrix_buf_arrow[i] = 0;
-                            break;
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-
-        ULA_update_arrow_keys();
-
+        do_events();
         #ifdef VIDEO_SYNC
             do_rewind();
             int now = SDL_GetTicks();

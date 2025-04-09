@@ -58,6 +58,7 @@ extern "C" {
         return emu_window_focused;
     }
     extern bool audio_paused;
+    extern bool paused;
     extern void reset_audio_buffer_and_unpause();
     extern float audio_volume;
     void load_file(char *file);
@@ -251,6 +252,14 @@ void ShowExampleAppDockSpace(bool* p_open)
             }
             
             if (ImGui::MenuItem("reset sync (audio)")) reset_audio_buffer_and_unpause();
+
+            if (ImGui::MenuItem("pause","Escape")) {
+                paused = !paused; 
+                audio_paused = paused;
+                if (!paused) {
+                    reset_audio_buffer_and_unpause();
+                }
+            }
 
             ImGui::EndMenu();
         }
@@ -604,7 +613,9 @@ int main(int argc, char *argv[]) {
         // Render Emulator framebuffer
         ImGui::Begin("Emulator Window");
 
-        if (rewind_pressed && actually_rewind) {
+        if (paused) {
+            ImGui::Text("Paused");
+        } if (rewind_pressed && actually_rewind) {
             ImGui::Text("Rewinding...");
         }
 

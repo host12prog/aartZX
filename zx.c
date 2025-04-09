@@ -49,6 +49,8 @@ uint32_t *mem_pos_rewind;
 int *time_rewind;
 int rewind_frame;
 bool rewind_pressed;
+bool pause_pressed;
+bool paused;
 bool actually_rewind;
 
 #include "io.h"
@@ -377,6 +379,8 @@ void init_zx(int argc, char *argv[], bool init_files) {
     memset(ula.key_matrix,0,sizeof(ula.key_matrix)); // clear key matrix
     ula.quit = false;
 
+    paused_prev = false;
+
     SDL_AudioSpec wanted;
     wanted.freq = SAMPLE_RATE;
     wanted.format = AUDIO_S16;
@@ -390,6 +394,10 @@ void init_zx(int argc, char *argv[], bool init_files) {
 }
 
 void main_zx() {
+    if (paused) {
+        do_events();
+        return;
+    }
     ula.did_frame = false;
     while (!ula.did_frame) {
         // HLE .tap loading yipeeeee
