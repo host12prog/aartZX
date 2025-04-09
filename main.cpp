@@ -729,7 +729,7 @@ int main(int argc, char *argv[]) {
             
             ImGui::Separator();
             // flags
-            PRINT_REG("F:","##freg",flag);
+            PRINT_REG("F:","##freg2",flag);
             ImGui::Checkbox("Carry",(bool *)&flags.c); ImGui::SameLine();
             ImGui::Checkbox("Negative",(bool *)&flags.n); ImGui::SameLine();
             ImGui::Checkbox("Parity",(bool *)&flags.p); ImGui::SameLine();

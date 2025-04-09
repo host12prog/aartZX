@@ -10,7 +10,7 @@ a modern ZX Spectrum emulator in C, C++, SDL2 and Dear ImGui
 - Memory Debugger with customizable Read/Write/Execution labels!
 - Customizable AY stereo settings
 - Rewind emulation (press backspace key in the Emulator Window)
-- CPU Register Viewer
+- CPU Register View
 - open-source via the zlib license.
 
 ## legal
