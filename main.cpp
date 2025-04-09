@@ -25,7 +25,6 @@
 // TODO: add glext include here
 #else
 #include <SDL_opengl.h>
-#include <SDL_opengl_glext.h>
 #endif
 
 // This example can also compile and run with Emscripten! See 'Makefile.emscripten' for details.
@@ -95,7 +94,6 @@ bool LoadTextureFromMemory(GLuint* out_texture) {
     // Upload pixels into texture
     glPixelStorei(GL_UNPACK_ROW_LENGTH, 0);
     glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, image_width, image_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
-    glGenerateMipmap(GL_TEXTURE_2D);
 
     *out_texture = image_texture;
 
