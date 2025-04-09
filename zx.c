@@ -29,6 +29,8 @@ struct window_bool {
     SHARED_BOOL is_ym2;
     uint8_t aypan;
     int AY_seperation;
+    SHARED_BOOL cpu_regview;
+    SHARED_BOOL contended;
 };
 
 extern struct window_bool visible_windows;

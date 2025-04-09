@@ -140,6 +140,7 @@ extern "C" {
         uint8_t aypan;
         int AY_seperation;
         SHARED_BOOL cpu_regview;
+        SHARED_BOOL contended;
     };
     struct window_bool visible_windows; // misc.h
 }
@@ -394,6 +395,7 @@ int main(int argc, char *argv[]) {
     visible_windows.AY_seperation = 70; // 70%
 
     visible_windows.cpu_regview = false;
+    visible_windows.contended = true;
 
     init_zx(argc, argv, true);
     AY_set_pan(visible_windows.aypan);
@@ -592,6 +594,10 @@ int main(int argc, char *argv[]) {
                 ImGui::ColorEdit3("Execution Label",(float *)&col);
                 visible_windows.exec_col = ImGui::ColorConvertFloat4ToU32(ImVec4(col[0],col[1],col[2],1.0f));
             }
+
+            ImGui::Separator();
+
+            ImGui::Checkbox("Enable contended memory",(bool *)&visible_windows.contended);
 
             ImGui::Separator();
             ImGui::MenuItem("Padding", NULL, &opt_padding);

@@ -180,6 +180,13 @@ static inline void advance_ULA() {
         draw_ULA_scanline(ula.scanline-63);
     }
 
+    if (ula.scanline == 63 && visible_windows.contended) {
+        ula.do_contended = true;
+    }
+    if (ula.scanline == 255) {
+        ula.do_contended = false;
+    }
+
     if (ula.scanline == 288) {
         ula.did_frame = true;
         do_events();
