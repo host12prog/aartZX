@@ -116,8 +116,8 @@ jobs:
         binPath=${{ steps.strings.outputs.build-output-dir }}
         mkdir ${{ steps.package-identify.outputs.filename }}
         pushd ${{ steps.package-identify.outputs.filename }}
-        cp -vr ${binPath}/aartZX.exe aartZX.exe
-        sha256sum ${binPath}/aartZX.exe > checksum.txt
+        cp -vr ${binPath}/${{ matrix.build_type }}/aartZX.exe aartZX.exe
+        sha256sum ${binPath}/${{ matrix.build_type }}/aartZX.exe > checksum.txt
         popd
   
     - name: Package [macOS]
