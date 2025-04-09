@@ -75,6 +75,26 @@ extern "C" {
     extern uint32_t cur_mempos_rewind;
     extern bool rewind_pressed;
     extern bool actually_rewind;
+    struct regs_Struct {
+        uint8_t a,b,c,d,e,f,h,l;
+        uint8_t as,bs,cs,ds,es,fs,hs,ls;
+        uint16_t ix,iy;
+        uint8_t iff1,iff2,i,r;
+        int16_t has_int;
+        uint8_t im;
+        uint16_t pc,sp;
+        SHARED_BOOL halt;
+        int cycles;
+    };
+    
+    struct flags_Struct {
+        SHARED_BOOL s,z,x,h,y,p,n,c;
+    };
+
+    extern struct regs_Struct regs;
+    extern struct flags_Struct flags;
+
+    extern uint16_t read_AF();
 }
 
 bool LoadTextureFromMemory(GLuint* out_texture) {
@@ -105,19 +125,20 @@ void load_settings();
 
 extern "C" {
     struct window_bool {
-        uint8_t memviewer;
-        uint8_t imgui_debugger;
-        uint8_t settings;
-        uint8_t read;
-        uint8_t write;
-        uint8_t exec;
+        SHARED_BOOL memviewer;
+        SHARED_BOOL imgui_debugger;
+        SHARED_BOOL settings;
+        SHARED_BOOL read;
+        SHARED_BOOL write;
+        SHARED_BOOL exec;
         uint32_t read_col;
         uint32_t write_col;
         uint32_t exec_col;
-        uint8_t is_ym1;
-        uint8_t is_ym2;
+        SHARED_BOOL is_ym1;
+        SHARED_BOOL is_ym2;
         uint8_t aypan;
         int AY_seperation;
+        SHARED_BOOL cpu_regview;
     };
     struct window_bool visible_windows; // misc.h
 }
@@ -239,8 +260,9 @@ void ShowExampleAppDockSpace(bool* p_open)
         if (ImGui::BeginMenu("windows")) {
             // Disabling fullscreen would allow the window to be moved to the front of other windows,
             // which we can't undo at the moment without finer window depth/z control.
-            ImGui::MenuItem("memory viewer", NULL, (bool *)&visible_windows.memviewer);
+            ImGui::MenuItem("Memory Viewer", NULL, (bool *)&visible_windows.memviewer);
             ImGui::MenuItem("ImGui Debugger", NULL, (bool *)&visible_windows.imgui_debugger);
+            ImGui::MenuItem("CPU Register View", NULL, (bool *)&visible_windows.cpu_regview);
 
             ImGui::EndMenu();
         }
@@ -362,6 +384,8 @@ int main(int argc, char *argv[]) {
 
     visible_windows.aypan = false;
     visible_windows.AY_seperation = 70; // 70%
+
+    visible_windows.cpu_regview = false;
 
     init_zx(argc, argv, true);
     AY_set_pan(visible_windows.aypan);
@@ -650,6 +674,91 @@ int main(int argc, char *argv[]) {
                     mem_edit.DrawContents(mem,131072);
                     break;
             }
+
+            ImGui::End();
+        }
+
+        if (visible_windows.cpu_regview) {
+            ImGui::Begin("CPU Register Viewer",(bool *)&visible_windows.cpu_regview);
+            // why do i have to do this
+            uint8_t one = 1;
+            uint16_t one16 = 1;
+
+            #define PRINT_REG(text,id,reg)  \
+                ImGui::Text(text); \
+                ImGui::SameLine(); \
+                ImGui::SetNextItemWidth(ImGui::GetWindowSize().x * 0.25f); \
+                ImGui::InputScalar(id,ImGuiDataType_U8,&reg,&one,NULL,"%02x",ImGuiInputTextFlags_ReadOnly);
+
+            #define PRINT_REG_NARROW(text,id,reg)  \
+                ImGui::Text(text); \
+                ImGui::SameLine(); \
+                ImGui::SetNextItemWidth(ImGui::GetWindowSize().x * 0.1f); \
+                ImGui::InputScalar(id,ImGuiDataType_U8,&reg,NULL,NULL,"%02x",ImGuiInputTextFlags_ReadOnly);
+
+            #define PRINT_REG16(text,id,reg)  \
+                ImGui::Text(text); \
+                ImGui::SameLine(); \
+                ImGui::SetNextItemWidth(ImGui::GetWindowSize().x * 0.25f); \
+                ImGui::InputScalar(id,ImGuiDataType_U16,&reg,&one16,NULL,"%04x",ImGuiInputTextFlags_ReadOnly);
+
+            PRINT_REG("A:","##areg",regs.a);
+            ImGui::SameLine();
+            uint8_t flag = read_AF()&0xff;
+            PRINT_REG("F:","##freg",flag);
+            ImGui::SameLine();
+            PRINT_REG16("SP:","##spreg",regs.sp);
+
+            PRINT_REG("B:","##breg",regs.b);
+            ImGui::SameLine();
+            PRINT_REG("C:","##creg",regs.c);
+            ImGui::SameLine();
+            PRINT_REG16("PC:","##pcreg",regs.pc);
+
+            PRINT_REG("D:","##dreg",regs.d);
+            ImGui::SameLine();
+            PRINT_REG("E:","##ereg",regs.e);
+            ImGui::SameLine();
+            PRINT_REG16("IX:","##ixreg",regs.ix);
+
+            PRINT_REG("H:","##hreg",regs.h);
+            ImGui::SameLine();
+            PRINT_REG("L:","##lreg",regs.l);
+            ImGui::SameLine();
+            PRINT_REG16("IY:","##iyreg",regs.iy);
+            
+            ImGui::Separator();
+            // flags
+            PRINT_REG("F:","##freg",flag);
+            ImGui::Checkbox("Carry",(bool *)&flags.c); ImGui::SameLine();
+            ImGui::Checkbox("Negative",(bool *)&flags.n); ImGui::SameLine();
+            ImGui::Checkbox("Parity",(bool *)&flags.p); ImGui::SameLine();
+            ImGui::Checkbox("Half Carry",(bool *)&flags.h);
+            ImGui::Checkbox("F5/X",(bool *)&flags.x); ImGui::SameLine();
+            ImGui::Checkbox("Zero",(bool *)&flags.z); ImGui::SameLine();
+            ImGui::Checkbox("F3/Y",(bool *)&flags.y); ImGui::SameLine();
+            ImGui::Checkbox("Sign",(bool *)&flags.s);
+
+            ImGui::Separator();
+            // shadow regs
+            PRINT_REG_NARROW("A':","##asreg",regs.as); ImGui::SameLine();
+            PRINT_REG_NARROW("F':","##fsreg",regs.fs); ImGui::SameLine();
+            PRINT_REG_NARROW("B':","##bsreg",regs.bs); ImGui::SameLine();
+            PRINT_REG_NARROW("C':","##csreg",regs.cs);
+
+            PRINT_REG_NARROW("D':","##dsreg",regs.ds); ImGui::SameLine();
+            PRINT_REG_NARROW("E':","##esreg",regs.es); ImGui::SameLine();
+            PRINT_REG_NARROW("H':","##hsreg",regs.hs); ImGui::SameLine();
+            PRINT_REG_NARROW("L':","##lsreg",regs.ls);
+
+            ImGui::Separator();
+            // shadow regs
+            PRINT_REG_NARROW("I:","##ireg",regs.i); ImGui::SameLine();
+            PRINT_REG_NARROW("R:","##rreg",regs.r); ImGui::SameLine();
+            PRINT_REG_NARROW("IM:","##imreg",regs.im);
+            ImGui::Checkbox("HALT",(bool *)&regs.halt); ImGui::SameLine();
+            ImGui::Checkbox("IFF1",(bool *)&regs.iff1); ImGui::SameLine();
+            ImGui::Checkbox("IFF2",(bool *)&regs.iff2);
 
             ImGui::End();
         }

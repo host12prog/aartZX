@@ -16,17 +16,17 @@
 typedef enum { false, true } bool; // booleans yay
 
 struct window_bool {
-    uint8_t memviewer;
-    uint8_t imgui_debugger;
-    uint8_t settings;
-    uint8_t read;
-    uint8_t write;
-    uint8_t exec;
+    SHARED_BOOL memviewer;
+    SHARED_BOOL imgui_debugger;
+    SHARED_BOOL settings;
+    SHARED_BOOL read;
+    SHARED_BOOL write;
+    SHARED_BOOL exec;
     uint32_t read_col;
     uint32_t write_col;
     uint32_t exec_col;
-    uint8_t is_ym1;
-    uint8_t is_ym2;
+    SHARED_BOOL is_ym1;
+    SHARED_BOOL is_ym2;
     uint8_t aypan;
     int AY_seperation;
 };

@@ -211,7 +211,7 @@ static inline uint16_t addIX_IY(uint16_t ind, uint16_t val) {
 }
 
 
-static inline uint16_t read_AF() {
+uint16_t read_AF() {
     uint16_t val = regs.a<<8;
     if (flags.c) val |= 1;
     if (flags.n) val |= 2;

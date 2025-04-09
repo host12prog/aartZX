@@ -17,12 +17,12 @@ struct regs_Struct {
     int16_t has_int;
     uint8_t im;
     uint16_t pc,sp;
-    bool halt;
+    SHARED_BOOL halt;
     int cycles;
 };
 
 struct flags_Struct {
-    bool s,z,x,h,y,p,n,c;
+    SHARED_BOOL s,z,x,h,y,p,n,c;
 };
 
 struct ula_Struct {

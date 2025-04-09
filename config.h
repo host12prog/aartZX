@@ -7,3 +7,5 @@
 
 #define REWIND_FRAMES (512)
 #define REWIND_MEM (131072*128)
+
+#define SHARED_BOOL uint8_t // for interfacing between C and C++ code
