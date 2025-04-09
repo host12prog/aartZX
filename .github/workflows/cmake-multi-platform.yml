@@ -23,7 +23,7 @@ jobs:
       #
       # To add more build types (Release, Debug, RelWithDebInfo, etc.) customize the build_type list.
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ubuntu-latest, windows-latest, macos-latest, macos-13]
         build_type: [Release]
         c_compiler: [gcc, clang, cl]
         include:
@@ -36,21 +36,37 @@ jobs:
           - os: macos-latest
             c_compiler: clang
             cpp_compiler: clang++
+          - os: macos-13
+            c_compiler: clang
+            cpp_compiler: clang++
         exclude:
-          - os: windows-latest
-            c_compiler: gcc
           - os: windows-latest
             c_compiler: clang
           - os: ubuntu-latest
             c_compiler: cl
-
+          - os: macos-latest
+            c_compiler: gcc
+            cpp_compiler: g++
+          - os: macos-13
+            c_compiler: gcc
+            cpp_compiler: g++
+          - os: macos-latest
+            c_compiler: cl
+          - os: macos-13
+            c_compiler: cl
+            
     steps:
-    - uses: actions/checkout@v4
-    - uses: libsdl-org/setup-sdl@v1
+    - name: Checkout
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+    - name: Get SDL2
+      uses: libsdl-org/setup-sdl@v1
       id: sdl
       with: 
         install-linux-dependencies: true
         version: 2-latest
+
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
       id: strings
