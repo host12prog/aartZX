@@ -8,6 +8,10 @@ on:
   pull_request:
     branches: [ "main" ]
 
+defaults:
+  run:
+    shell: bash
+
 jobs:
   build:
     runs-on: ${{ matrix.os }}
@@ -83,10 +87,17 @@ jobs:
 
     - name: Get SDL2
       uses: libsdl-org/setup-sdl@v1
-      id: sdl
+      if: ${{ runner.os != 'Linux' }}
       with: 
         install-linux-dependencies: true
         version: sdl2-any
+
+    - name: Get SDL2 [Linux]
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        sudo apt update
+        sudo apt install \
+          libsdl2-dev
 
     - name: Set reusable strings
       # Turn repeated input strings (such as the build output directory) into step outputs. These step outputs can be used throughout the workflow file.
@@ -126,7 +137,7 @@ jobs:
         mkdir ${{ steps.package-identify.outputs.filename }}
         pushd ${{ steps.package-identify.outputs.filename }}
         ls ${binPath}
-        cp -v ${binPath}/aartZX.app aartZX.app
+        cp -v ${binPath}/aartZX aartZX.app
         popd
         
     - name: Package [Linux]
