@@ -46,10 +46,8 @@ jobs:
             c_compiler: cl
           - os: macos-latest
             c_compiler: gcc
-            cpp_compiler: g++
           - os: macos-13
             c_compiler: gcc
-            cpp_compiler: g++
           - os: macos-latest
             c_compiler: cl
           - os: macos-13
