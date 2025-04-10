@@ -665,9 +665,9 @@ int main(int argc, char *argv[]) {
             ImVec2 window_pos = ImGui::GetWindowPos();
             double x = (double)(((get_hcount()-112)*2.0f+160.0f)*(res.x/320.0f))+cursor_pos.x+window_pos.x;
             double y = (double)((get_vcount()-31.0f)*(res.y/256.0f))+cursor_pos.y+window_pos.y;
-            res_rect /= 128.0f;
+            res_rect /= 144.0f;
             draw_list->AddRectFilled(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), IM_COL32(0xFF,0x80,0xFF,0xFF));
-            draw_list->AddRect(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), IM_COL32(0x80,0x40,0x80,0xFF), 0, 0, 2.0f);\
+            draw_list->AddRect(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), IM_COL32(0x80,0x40,0x80,0xFF), 0, 0, res_rect/2.0f);\
             // render I/O writes
             static std::string event_type[] = {"ULA Write","ULA Read","AY Write","AY Read","Paging Write"};
             int i = 0;
@@ -704,7 +704,7 @@ int main(int argc, char *argv[]) {
                         x = (double)(((xp-112)*2.0f+160.0f)*(res.x/320.0f))+cursor_pos.x+window_pos.x;
                         y = (double)((yp-31)*(res.y/256.0f))+cursor_pos.y+window_pos.y;
                         draw_list->AddRectFilled(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), col_outer);
-                        draw_list->AddRect(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), col_inner, 0, 0, 2.0f);
+                        draw_list->AddRect(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), col_inner, 0, 0, res_rect/2.0f);
                         if (ImGui::IsMouseHoveringRect(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect))) {
                             ImGui::BeginTooltip();
                             ImGui::Text("Type: %s",event_type[event-1].c_str());
