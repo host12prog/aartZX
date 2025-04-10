@@ -63,6 +63,13 @@ uint8_t *zx_rom;
 
 static inline uint8_t read_PC();
 
+int get_vcount() {
+    return (int)ula.scanline;
+}
+int get_hcount() {
+    return (int)ula.cycles;
+}
+
 // for ZX Spectrum memory contention
 static inline void add_cycles(uint8_t cycles) {
     //regs.cycles += cycles;

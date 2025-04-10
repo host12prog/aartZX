@@ -50,6 +50,7 @@ add_compile_definitions(ImTextureID=void*)
 add_executable(
     aartZX 
     main.cpp
+	disasm.cpp
     ayumi.c
     zx.c
 )

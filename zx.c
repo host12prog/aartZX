@@ -31,6 +31,7 @@ struct window_bool {
     int AY_seperation;
     SHARED_BOOL cpu_regview;
     SHARED_BOOL contended;
+    SHARED_BOOL disasm;
 };
 
 extern struct window_bool visible_windows;
@@ -313,6 +314,8 @@ void init_zx(int argc, char *argv[], bool init_files) {
     actually_rewind = false;
     mem_pos_underflow = false;
 
+    memset(&debug_pressed,0,sizeof(debug_pressed));
+
     // init Z80 registers
     memset(&regs,0,sizeof(regs));
     memset(&flags,0,sizeof(flags));
@@ -395,124 +398,141 @@ void init_zx(int argc, char *argv[], bool init_files) {
     SDL_PauseAudio(0);
 }
 
+void do_oneop() {
+    // HLE .tap loading yipeeeee
+    if (regs.pc == 0x56C && ula.rom_sel && do_tap) {
+        // get tap block size (in 16-bit LE format)
+        if (ftell(tap) >= (tap_file_size-2)) {
+            flags.c = 1;
+            ret(true,false);
+        } else {
+            uint16_t tap_size = fgetc(tap);
+            tap_size |= fgetc(tap)<<8;
+            // compare it with DE
+            if ((tap_size-2) == REG_DE) {
+                // now check if the first byte from the data block == A'
+                // if not then clear carry and execute ret
+                uint8_t data_block_byte = fgetc(tap);
+                if (data_block_byte == regs.as) {
+                    // (description found from r/emudev IIRC)
+                    // if carry is set in F' then this is a LOAD, not a VERIFY
+                    // so only if it is set I then read DE bytes from the tape,
+                    // writing them starting at IX and then set carry in regular F
+                    if (regs.fs&1) {
+                        uint16_t chunk_size = REG_DE;
+                        for (int i = 0; i < chunk_size; i++) {
+                            writeZ80(regs.ix++,fgetc(tap));
+                        }
+                        fgetc(tap); // skip one byte
+                        regs.d = 0;
+                        regs.e = 0;
+                        regs.h = 0;
+                        regs.a = 0;
+                        regs.l = 170;
+                        flags.c = 1;
+                        ret(true,false);
+                    }
+                } else {
+                    // go back ONE byte
+                    long pos = ftell(tap)-1;
+                    fseek(tap, pos, SEEK_SET);
+                    flags.c = 0;
+                    ret(true,false);
+                }
+            } else {
+                // go back 2 bytes
+                long pos = ftell(tap)-2;
+                fseek(tap, pos, SEEK_SET);
+                flags.c = 0;
+                ret(true,false);
+            }
+        }
+    }
+
+    ula.audio_cycles_beeper = 0;
+    step();
+
+    // ula video
+    if (ula.cycles >= 228) advance_ULA();
+
+    // audio buffer
+    int16_t beeper = (ula.ULA_FE>>4&1?((8192-1024)*2):0);
+    ula.beeper_filter = ((ula.beeper_filter*(ula.audio_cycles_beeper*2))+beeper)/(ula.audio_cycles_beeper*2+1);
+    if (ula.audio_cycles >= 295) { // (3545400/48000*4)
+        ula.audio_cycles -= 295;
+        #ifdef AY_EMULATION
+            // mix beeper with AY
+            ayumi_process(&AY_chip1);
+            ayumi_remove_dc(&AY_chip1);
+            #ifdef AY_TURBOSOUND
+                ayumi_process(&AY_chip2);
+                ayumi_remove_dc(&AY_chip2);
+            #endif
+
+            #ifdef AY_TURBOSOUND
+            ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
+                CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.left*(8192-1024)*2.0)
+                +(int16_t)(AY_chip2.left*(8192-1024)*2.0))*audio_volume,-32767,32767);
+            ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
+                CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.right*(8192-1024)*2.0)
+                +(int16_t)(AY_chip2.right*(8192-1024)*2.0))*audio_volume,-32767,32767);
+            #else
+            ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
+                CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.left*(8192-1024)*2.0))*audio_volume,-32767,32767);
+            ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
+                CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.right*(8192-1024)*2.0))*audio_volume,-32767,32767);
+            #endif
+        #else
+            ula.audio_buffer_temp[ula.audio_buffer_ind++] = ula.beeper_filter;
+        #endif
+        if (ula.audio_buffer_ind == BUFFER_SIZE) {
+            ula.audio_buffer_ind = 0;
+            memcpy(&ula.audio_buffer[ula.audio_buffer_write], 
+                   ula.audio_buffer_temp,
+                   BUFFER_SIZE<<1);
+
+            ula.audio_buffer_write += BUFFER_SIZE;
+
+            if (ula.audio_buffer_write >= (BUFFER_SIZE*4))
+                ula.audio_buffer_write -= (BUFFER_SIZE*4);
+
+            #ifdef AUDIO_SYNC
+                int now = SDL_GetTicks();
+                if (ula.time > now) {
+                    now = ula.time - now;
+                    SDL_Delay(now);
+                }
+                ula.time += 1000/50;
+                do_rewind();
+            #endif
+        }
+    }
+}
+
+void do_onescan() {
+    int cycles = ula.cycles;
+    size_t scanline = ula.scanline;
+    while (ula.scanline == scanline) do_oneop(); // wait until next scanline
+    while (ula.cycles < (cycles-4)) do_oneop(); // wait until cycle is approx
+}
+
 void main_zx() {
     if (paused) {
+        if (debug_pressed.scan_pressed) {
+            do_onescan();
+        } else if (debug_pressed.step_pressed) {
+            do_oneop();
+        }
+        debug_pressed.step_pressed = false;
+        debug_pressed.scan_pressed = false;
         do_events();
         return;
     }
     ula.did_frame = false;
     while (!ula.did_frame) {
-        // HLE .tap loading yipeeeee
-        if (regs.pc == 0x56C && ula.rom_sel && do_tap) {
-            // get tap block size (in 16-bit LE format)
-            if (ftell(tap) >= (tap_file_size-2)) {
-                flags.c = 1;
-                ret(true,false);
-            } else {
-                uint16_t tap_size = fgetc(tap);
-                tap_size |= fgetc(tap)<<8;
-                // compare it with DE
-                if ((tap_size-2) == REG_DE) {
-                    // now check if the first byte from the data block == A'
-                    // if not then clear carry and execute ret
-                    uint8_t data_block_byte = fgetc(tap);
-                    if (data_block_byte == regs.as) {
-                        // (description found from r/emudev IIRC)
-                        // if carry is set in F' then this is a LOAD, not a VERIFY
-                        // so only if it is set I then read DE bytes from the tape,
-                        // writing them starting at IX and then set carry in regular F
-                        if (regs.fs&1) {
-                            uint16_t chunk_size = REG_DE;
-                            for (int i = 0; i < chunk_size; i++) {
-                                writeZ80(regs.ix++,fgetc(tap));
-                            }
-                            fgetc(tap); // skip one byte
-                            regs.d = 0;
-                            regs.e = 0;
-                            regs.h = 0;
-                            regs.a = 0;
-                            regs.l = 170;
-                            flags.c = 1;
-                            ret(true,false);
-                        }
-                    } else {
-                        // go back ONE byte
-                        long pos = ftell(tap)-1;
-                        fseek(tap, pos, SEEK_SET);
-                        flags.c = 0;
-                        ret(true,false);
-                    }
-                } else {
-                    // go back 2 bytes
-                    long pos = ftell(tap)-2;
-                    fseek(tap, pos, SEEK_SET);
-                    flags.c = 0;
-                    ret(true,false);
-                }
-            }
-        }
-
-        ula.audio_cycles_beeper = 0;
-        step();
-
-        // ula video
-        if (ula.cycles >= 228) advance_ULA();
-
-        // audio buffer
-        int16_t beeper = (ula.ULA_FE>>4&1?((8192-1024)*2):0);
-        ula.beeper_filter = ((ula.beeper_filter*(ula.audio_cycles_beeper*2))+beeper)/(ula.audio_cycles_beeper*2+1);
-        if (ula.audio_cycles >= 295) { // (3545400/48000*4)
-            ula.audio_cycles -= 295;
-            #ifdef AY_EMULATION
-                // mix beeper with AY
-                ayumi_process(&AY_chip1);
-                ayumi_remove_dc(&AY_chip1);
-                #ifdef AY_TURBOSOUND
-                    ayumi_process(&AY_chip2);
-                    ayumi_remove_dc(&AY_chip2);
-                #endif
-
-                #ifdef AY_TURBOSOUND
-                ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
-                    CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.left*(8192-1024)*2.0)
-                    +(int16_t)(AY_chip2.left*(8192-1024)*2.0))*audio_volume,-32767,32767);
-                ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
-                    CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.right*(8192-1024)*2.0)
-                    +(int16_t)(AY_chip2.right*(8192-1024)*2.0))*audio_volume,-32767,32767);
-                #else
-                ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
-                    CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.left*(8192-1024)*2.0))*audio_volume,-32767,32767);
-                ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
-                    CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.right*(8192-1024)*2.0))*audio_volume,-32767,32767);
-                #endif
-            #else
-                ula.audio_buffer_temp[ula.audio_buffer_ind++] = ula.beeper_filter;
-            #endif
-            if (ula.audio_buffer_ind == BUFFER_SIZE) {
-                ula.audio_buffer_ind = 0;
-                memcpy(&ula.audio_buffer[ula.audio_buffer_write], 
-                       ula.audio_buffer_temp,
-                       BUFFER_SIZE<<1);
-
-                ula.audio_buffer_write += BUFFER_SIZE;
-
-                if (ula.audio_buffer_write >= (BUFFER_SIZE*4))
-                    ula.audio_buffer_write -= (BUFFER_SIZE*4);
-
-                #ifdef AUDIO_SYNC
-                    int now = SDL_GetTicks();
-                    if (ula.time > now) {
-                        now = ula.time - now;
-                        SDL_Delay(now);
-                    }
-                    ula.time += 1000/50;
-                    do_rewind();
-                #endif
-            }
-        }
+        do_oneop();
     }
 }
-
 
 void deinit_zx(bool deinit_file) {
     if (deinit_file) free(zx_rom);

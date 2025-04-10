@@ -71,6 +71,12 @@ const int sdl_arrow_matrix[4] = {
 
 bool paused_prev;
 
+struct debug_button {
+    uint8_t step_pressed;
+    uint8_t scan_pressed;
+};
+struct debug_button debug_pressed;
+
 static inline void ULA_update_arrow_keys() {
     // clear buffer
     memcpy(ula.key_matrix,ula.key_matrix_buf,sizeof(ula.key_matrix));
@@ -91,15 +97,24 @@ static void do_events() {
                 ula.quit = true;
                 break;
             case SDL_KEYDOWN: {
+                if (event.key.keysym.sym == SDLK_ESCAPE) {
+                    pause_pressed = true;
+                }
+
+                if (event.key.keysym.sym == SDLK_F10) {
+                    debug_pressed.step_pressed = true;
+                }
+
+                if (event.key.keysym.sym == SDLK_F7) {
+                    debug_pressed.scan_pressed = true;
+                }
+
                 if (!EMU_IMGUI_is_emu_focused()) break;
 
                 if (event.key.keysym.sym == SDLK_BACKSPACE) {
                     rewind_pressed = true;
                 }
-
-                if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    pause_pressed = true;
-                }
+    
 
                 for (int i = 0; i < 40; i++) { // check for normal keys
                     if (event.key.keysym.sym == sdl_key_matrix_codes[i] ||
@@ -118,6 +133,10 @@ static void do_events() {
                 break;
             }
             case SDL_KEYUP: {
+                if (event.key.keysym.sym == SDLK_ESCAPE) {
+                    pause_pressed = false;
+                }
+
                 if (!EMU_IMGUI_is_emu_focused()) break;
 
                 if (event.key.keysym.sym == SDLK_BACKSPACE) {
@@ -125,10 +144,6 @@ static void do_events() {
                     reset_audio_buffer_and_unpause();
                     memset(ula.key_matrix_buf,0,sizeof(ula.key_matrix_buf));
                     memset(ula.key_matrix_buf_arrow,0,sizeof(ula.key_matrix_buf_arrow));
-                }
-
-                if (event.key.keysym.sym == SDLK_ESCAPE) {
-                    pause_pressed = false;
                 }
 
                 for (int i = 0; i < 40; i++) {

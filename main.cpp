@@ -96,6 +96,9 @@ extern "C" {
     extern struct flags_Struct flags;
 
     extern uint16_t read_AF();
+
+    extern int get_vcount();
+    extern int get_hcount();
 }
 
 bool LoadTextureFromMemory(GLuint* out_texture) {
@@ -141,6 +144,7 @@ extern "C" {
         int AY_seperation;
         SHARED_BOOL cpu_regview;
         SHARED_BOOL contended;
+        SHARED_BOOL disasm;
     };
     struct window_bool visible_windows; // misc.h
 }
@@ -273,6 +277,7 @@ void ShowExampleAppDockSpace(bool* p_open)
             ImGui::MenuItem("Memory Viewer", NULL, (bool *)&visible_windows.memviewer);
             ImGui::MenuItem("ImGui Debugger", NULL, (bool *)&visible_windows.imgui_debugger);
             ImGui::MenuItem("CPU Register View", NULL, (bool *)&visible_windows.cpu_regview);
+            ImGui::MenuItem("Z80 Debugger", NULL, (bool *)&visible_windows.disasm);
 
             ImGui::EndMenu();
         }
@@ -372,6 +377,9 @@ void do_mem_fade() {
         else if ((mem_highlight[i]&0xFF000000) > 0 ) mem_highlight[i] &= 0xFFFFFF;
     }
 }
+
+extern void do_disasm(bool *p_open);
+
 // Main code
 int main(int argc, char *argv[]) {
     
@@ -396,6 +404,7 @@ int main(int argc, char *argv[]) {
 
     visible_windows.cpu_regview = false;
     visible_windows.contended = true;
+    visible_windows.disasm = false;
 
     init_zx(argc, argv, true);
     AY_set_pan(visible_windows.aypan);
@@ -469,6 +478,7 @@ int main(int argc, char *argv[]) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO(); (void)io;
+    io.Fonts->AddFontDefault();
     //io.Fonts->AddFontFromFileTTF("IBMPlexSans.ttf", 25.0f); // FOINISS FONT OH MAI GAHHHH
 
     io.FontGlobalScale = 1.0f;
@@ -629,15 +639,30 @@ int main(int argc, char *argv[]) {
         double aspect_ratio = ImGui::GetWindowSize().x / ImGui::GetWindowSize().y;
 
         ImVec2 res;
+        double res_rect;
         if (aspect_ratio < 4.0f/3.0f) {
-            double x_res = ImGui::GetWindowSize().x/1.01;
+            double x_res = ImGui::GetWindowSize().x/1.07;
+            res_rect = x_res/4.0*3.0;
             res = ImVec2(x_res, x_res/4.0*3.0);
         } else {
-            double y_res = ImGui::GetWindowSize().y/1.01;
+            double y_res = ImGui::GetWindowSize().y/1.07;
+            res_rect = y_res/3.0*4.0;
             res = ImVec2(y_res/3.0*4.0, y_res);
         }
-        ImGui::SetCursorPos((ImGui::GetWindowSize() - res) * 0.5f);
+        ImVec2 cursor_pos = (ImGui::GetWindowSize() - res) * 0.5f;
+        ImGui::SetCursorPos(cursor_pos);
         ImGui::Image((void*)(intptr_t)my_image_texture, res);
+
+        { // draw rectangle if debugging is enabled
+            ImDrawList* draw_list = ImGui::GetWindowDrawList();
+            ImVec2 window_pos = ImGui::GetWindowPos();
+            double x = (double)(((get_hcount()-112)*2.0f*(480.0f/320.f)+160.0f)*(res.x/320.0f))+cursor_pos.x+window_pos.x;
+            double y = (double)((get_vcount()-31.0f)*(res.y/256.0f))+cursor_pos.y+window_pos.y;
+            res_rect /= 128.0f;
+            draw_list->AddRectFilled(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), IM_COL32(0xFF,0x80,0xFF,0xFF));
+            draw_list->AddRect(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), IM_COL32(0x80,0x40,0x80,0xFF), 0, 0, 2.0f);
+        }
+
         ImGui::End();
         
         if (visible_windows.memviewer) {
@@ -704,19 +729,19 @@ int main(int argc, char *argv[]) {
                 ImGui::Text(text); \
                 ImGui::SameLine(); \
                 ImGui::SetNextItemWidth(ImGui::GetWindowSize().x * 0.25f); \
-                ImGui::InputScalar(id,ImGuiDataType_U8,&reg,&one,NULL,"%02x",ImGuiInputTextFlags_ReadOnly);
+                ImGui::InputScalar(id,ImGuiDataType_U8,&reg,&one,NULL,"%02x",0);
 
             #define PRINT_REG_NARROW(text,id,reg)  \
                 ImGui::Text(text); \
                 ImGui::SameLine(); \
                 ImGui::SetNextItemWidth(ImGui::GetWindowSize().x * 0.1f); \
-                ImGui::InputScalar(id,ImGuiDataType_U8,&reg,NULL,NULL,"%02x",ImGuiInputTextFlags_ReadOnly);
+                ImGui::InputScalar(id,ImGuiDataType_U8,&reg,NULL,NULL,"%02x",0);
 
             #define PRINT_REG16(text,id,reg)  \
                 ImGui::Text(text); \
                 ImGui::SameLine(); \
                 ImGui::SetNextItemWidth(ImGui::GetWindowSize().x * 0.25f); \
-                ImGui::InputScalar(id,ImGuiDataType_U16,&reg,&one16,NULL,"%04x",ImGuiInputTextFlags_ReadOnly);
+                ImGui::InputScalar(id,ImGuiDataType_U16,&reg,&one16,NULL,"%04x",0);
 
             PRINT_REG("A:","##areg",regs.a);
             ImGui::SameLine();
@@ -778,6 +803,8 @@ int main(int argc, char *argv[]) {
 
             ImGui::End();
         }
+
+        if (visible_windows.disasm) do_disasm((bool *)&visible_windows.disasm);
 
         ImGui::Render();
 
