@@ -32,6 +32,8 @@ struct window_bool {
     SHARED_BOOL cpu_regview;
     SHARED_BOOL contended;
     SHARED_BOOL disasm;
+    float screen_scale;
+    SHARED_BOOL do_event_viewer;
 };
 
 extern struct window_bool visible_windows;
@@ -55,6 +57,7 @@ bool rewind_pressed;
 bool pause_pressed;
 bool paused;
 bool actually_rewind;
+uint8_t *event_viewer;
 
 #include "io.h"
 
@@ -307,6 +310,9 @@ void init_zx(int argc, char *argv[], bool init_files) {
     mem_pos_rewind = (uint32_t*)malloc(REWIND_FRAMES*sizeof(uint32_t));
     memset(mem_pos_rewind,0,REWIND_FRAMES*sizeof(uint32_t));
 
+    event_viewer = (uint8_t*)malloc(228*311*sizeof(uint8_t));
+    memset(event_viewer,0,228*311*sizeof(uint8_t));
+    
     cur_time_rewind = 0;
     cur_mempos_rewind = 0;
 
@@ -336,6 +342,7 @@ void init_zx(int argc, char *argv[], bool init_files) {
     ula.gfx_sel = 0;
     ula.scanline = 0;
     ula.ULA_FE = 0;
+    ula.cycles_leftover = 0;
     memset(ula.key_matrix_buf,0,sizeof(ula.key_matrix_buf));
 
     // init ULA audio
@@ -510,10 +517,9 @@ void do_oneop() {
 }
 
 void do_onescan() {
-    int cycles = ula.cycles;
-    size_t scanline = ula.scanline;
-    while (ula.scanline == scanline) do_oneop(); // wait until next scanline
-    while (ula.cycles < (cycles-4)) do_oneop(); // wait until cycle is approx
+    int leftover_cyc = ula.cycles_leftover;
+    ula.debug_cycles = 0;
+    while (ula.debug_cycles < (228-leftover_cyc)) do_oneop(); // wait until cycle is approx
 }
 
 void main_zx() {
@@ -550,6 +556,7 @@ void deinit_zx(bool deinit_file) {
     free(mem_rewind);
     free(time_rewind);
     free(mem_pos_rewind);
+    free(event_viewer);
 }
 
 void set_YM(bool is_ym, int chip) {

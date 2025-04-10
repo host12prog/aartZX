@@ -180,9 +180,11 @@ static void do_events() {
 
 // advances the ULA emulation per scanline
 static inline void advance_ULA() {
+    ula.cycles_leftover = (ula.cycles-228);
     ula.cycles -= 228;
     if (ula.scanline == 0) { // fire VBLANK at the start of each frame
         regs.has_int = 0x38;
+        memset(event_viewer,0,228*311*sizeof(uint8_t));
         // TODO: remove this line
         // regs.r = 255;
     }
@@ -202,7 +204,7 @@ static inline void advance_ULA() {
         ula.do_contended = false;
     }
 
-    if (ula.scanline == 288) {
+    if (ula.scanline == 310) {
         ula.did_frame = true;
         do_events();
         #ifdef VIDEO_SYNC
@@ -220,6 +222,12 @@ static inline void advance_ULA() {
     ula.scanline = (ula.scanline+1)%311;
 }
 
+#define WRITE_EVENT(num) \
+    { \
+        size_t scanline = ula.scanline-((ula.cycles-(ula.cycles%228))/228); \
+        event_viewer[(ula.cycles%228)+(scanline*228)] = (num)+1; \
+    }
+
 void update_ayumi_state(struct ayumi* ay, uint8_t* r, uint8_t addr);
 
 #ifdef AY_EMULATION
@@ -236,8 +244,12 @@ struct ayumi AY_chip1;
 #endif
 
 static inline uint8_t inZ80(uint16_t addr) {
+    // very crude i know
+    if ((!(addr&1)) || (addr&0x8000)) if (ula.do_contended) add_contended_cycles();
+
     #ifdef AY_EMULATION
         if ((addr&0x8000) && !(addr&2)) {
+            WRITE_EVENT(3);
             #ifdef AY_TURBOSOUND
                 return AY_regs[AY_ind&0x1f];
             #else
@@ -248,7 +260,7 @@ static inline uint8_t inZ80(uint16_t addr) {
     if (addr&1) {
         return 0;
     } else {
-        if (ula.do_contended) add_contended_cycles();
+        WRITE_EVENT(1);
         // read keyboard matrix
         int key = 31;
         for (size_t bit = 0; bit < 8; bit++){
@@ -266,6 +278,9 @@ static inline uint8_t inZ80(uint16_t addr) {
 }
 
 static inline void outZ80(uint16_t addr, uint8_t val) {
+    // very crude i know
+    if ((!(addr&1)) || (addr&0x8000)) if (ula.do_contended) add_contended_cycles();
+
     if (!(addr&0x8000) && !(addr&2)) {
         // paging
         // 00DRGMMM
@@ -278,9 +293,11 @@ static inline void outZ80(uint16_t addr, uint8_t val) {
         ula.rom_sel = val>>4&1;
         ula.ram_bank = val&7;
         ula.gfx_sel = val>>3&1;
+        WRITE_EVENT(4);
     } 
     #ifdef AY_EMULATION
     else if ((addr&0x8000) && !(addr&2)) {
+        WRITE_EVENT(2);
         if (addr & 0x4000) {
             // turbosound chip
             if (val >= 16) {
@@ -306,8 +323,8 @@ static inline void outZ80(uint16_t addr, uint8_t val) {
     } 
     #endif
     else if ((addr&1) == 0) {
-        if (ula.do_contended) add_contended_cycles();
         ula.ULA_FE = val;
+        WRITE_EVENT(0);
     }
 }
 

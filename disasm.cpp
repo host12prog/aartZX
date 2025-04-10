@@ -175,7 +175,7 @@ uint8_t get_opsize(uint16_t pc) {
             if (size > 6) return 6;
             op = readZ80_no_highlight(pc+size);
         } else if (op == 0xED) { // ED/misc opcodes
-            size += _opSize[readZ80_no_highlight(pc+size+1)];
+            size += _opSizeEd[readZ80_no_highlight(pc+size+1)];
             return size;     
         } else {
             if (is_index) {
@@ -216,7 +216,7 @@ extern "C" {
     extern int get_hcount();
 }
 
-void do_disasm(bool *p_open) {
+void do_disasm(bool *p_open, bool *enable_event) {
     int font_size = 13;
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGui::Begin("Z80 Debugger", p_open, ImGuiWindowFlags_NoScrollbar);
@@ -226,6 +226,8 @@ void do_disasm(bool *p_open) {
     if (ImGui::Button("Run one scanline (F7)")) do_onescan();
     ImGui::SameLine();
     ImGui::Text("Scanline: %3d   Cycle: %3d",get_vcount(),get_hcount());
+
+    ImGui::Checkbox("Event Viewer",enable_event);
 
     ImGui::Separator();
     int rows = (int)(ImGui::GetWindowSize().y/io.FontGlobalScale/font_size/1.3f);

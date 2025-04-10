@@ -48,6 +48,8 @@ struct ula_Struct {
     int16_t audio_buffer_write; // for audio buffering
     int16_t beeper_filter;
     bool did_frame;
+    uint16_t cycles_leftover;
+    uint32_t debug_cycles;
 };
 
 #define swap(a,b) { uint8_t temp = a; a = b; b = temp; }
@@ -76,10 +78,12 @@ static inline void add_cycles(uint8_t cycles) {
     ula.cycles += cycles;
     ula.audio_cycles += (uint16_t)cycles<<2;
     ula.audio_cycles_beeper += cycles;
+    ula.debug_cycles += cycles;
 }
 
 static inline void add_contended_cycles() {
-    const static uint8_t scanline_cycle_lut[8] = {3,2,1,0,0,6,5,4};
+    //const static uint8_t scanline_cycle_lut[8] = {3,2,1,0,0,6,5,4};
+    const static uint8_t scanline_cycle_lut[8] = {6,5,4,3,2,1,0,0};
     int register scanline_cycle = ula.cycles%228;
     if (scanline_cycle >= 24 && scanline_cycle < 152) { // 24 + 128
         // "delay" the CPU by N cycles by just

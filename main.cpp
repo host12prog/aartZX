@@ -99,6 +99,7 @@ extern "C" {
 
     extern int get_vcount();
     extern int get_hcount();
+    extern uint8_t *event_viewer;
 }
 
 bool LoadTextureFromMemory(GLuint* out_texture) {
@@ -145,6 +146,8 @@ extern "C" {
         SHARED_BOOL cpu_regview;
         SHARED_BOOL contended;
         SHARED_BOOL disasm;
+        float screen_scale;
+        SHARED_BOOL do_event_viewer;
     };
     struct window_bool visible_windows; // misc.h
 }
@@ -378,7 +381,7 @@ void do_mem_fade() {
     }
 }
 
-extern void do_disasm(bool *p_open);
+extern void do_disasm(bool *p_open, bool *enable_event);
 
 // Main code
 int main(int argc, char *argv[]) {
@@ -405,6 +408,9 @@ int main(int argc, char *argv[]) {
     visible_windows.cpu_regview = false;
     visible_windows.contended = true;
     visible_windows.disasm = false;
+
+    visible_windows.screen_scale = 0.94f;
+    visible_windows.do_event_viewer = false;
 
     init_zx(argc, argv, true);
     AY_set_pan(visible_windows.aypan);
@@ -541,6 +547,7 @@ int main(int argc, char *argv[]) {
             // Settings
             ImGui::Begin("Settings",(bool *)&visible_windows.settings);
             ImGui::SliderFloat("UI Scaling Factor", &io.FontGlobalScale, 0.5f, 3.0f); rightClickable
+            ImGui::SliderFloat("Emulator Window Scaline Factor", &visible_windows.screen_scale, 0.1f, 3.0f); rightClickable
             ImGui::SliderFloat("Master Audio Volume", &audio_volume, 0.0f, 3.0f); rightClickable
             ImGui::Separator();
 
@@ -641,11 +648,11 @@ int main(int argc, char *argv[]) {
         ImVec2 res;
         double res_rect;
         if (aspect_ratio < 4.0f/3.0f) {
-            double x_res = ImGui::GetWindowSize().x/1.07;
+            double x_res = ImGui::GetWindowSize().x * visible_windows.screen_scale;
             res_rect = x_res/4.0*3.0;
             res = ImVec2(x_res, x_res/4.0*3.0);
         } else {
-            double y_res = ImGui::GetWindowSize().y/1.07;
+            double y_res = ImGui::GetWindowSize().y * visible_windows.screen_scale;
             res_rect = y_res/3.0*4.0;
             res = ImVec2(y_res/3.0*4.0, y_res);
         }
@@ -653,18 +660,68 @@ int main(int argc, char *argv[]) {
         ImGui::SetCursorPos(cursor_pos);
         ImGui::Image((void*)(intptr_t)my_image_texture, res);
 
-        { // draw rectangle if debugging is enabled
+        if (visible_windows.do_event_viewer) { // draw rectangles if event viewer is enabled
             ImDrawList* draw_list = ImGui::GetWindowDrawList();
             ImVec2 window_pos = ImGui::GetWindowPos();
-            double x = (double)(((get_hcount()-112)*2.0f*(480.0f/320.f)+160.0f)*(res.x/320.0f))+cursor_pos.x+window_pos.x;
+            double x = (double)(((get_hcount()-112)*2.0f+160.0f)*(res.x/320.0f))+cursor_pos.x+window_pos.x;
             double y = (double)((get_vcount()-31.0f)*(res.y/256.0f))+cursor_pos.y+window_pos.y;
             res_rect /= 128.0f;
             draw_list->AddRectFilled(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), IM_COL32(0xFF,0x80,0xFF,0xFF));
-            draw_list->AddRect(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), IM_COL32(0x80,0x40,0x80,0xFF), 0, 0, 2.0f);
+            draw_list->AddRect(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), IM_COL32(0x80,0x40,0x80,0xFF), 0, 0, 2.0f);\
+            // render I/O writes
+            static std::string event_type[] = {"ULA Write","ULA Read","AY Write","AY Read","Paging Write"};
+            int i = 0;
+            for (int yp = 0; yp < 311; yp++) {
+                for (int xp = 0; xp < 228; xp++) {
+                    uint8_t event = event_viewer[i++];
+                    if (event != 0) {
+                        uint32_t col_outer = 0;
+                        uint32_t col_inner = 0;
+                        switch (event-1) {
+                            case 0: // ULA write
+                                col_outer = IM_COL32(0xFF,0x06,0x0D,0xFF);
+                                col_inner = IM_COL32(0xFF>>1,0x06>>1,0x0D>>1,0xFF);
+                                break;
+                            case 1: // ULA read
+                                col_outer = IM_COL32(0xFF,0x74,0x0A,0xFF);
+                                col_inner = IM_COL32(0xFF>>1,0x74>>1,0x0A>>1,0xFF);
+                                break;
+                            case 2: // AY write
+                                col_outer = IM_COL32(0x9F,0x93,0xC6,0xFF);
+                                col_inner = IM_COL32(0x9F>>1,0x93>>1,0xC6>>1,0xFF);
+                                break;
+                            case 3: // AY read
+                                col_outer = IM_COL32(0xF9,0xFE,0xAC,0xFF);
+                                col_inner = IM_COL32(0xF9>>1,0xFE>>1,0xAC>>1,0xFF);
+                                break;
+                            case 4: // paging write
+                                col_outer = IM_COL32(0x00,0x6E,0x6E,0xFF);
+                                col_inner = IM_COL32(0x00>>1,0x6E>>1,0x6E>>1,0xFF);
+                                break;
+                            default:
+                                break;
+                        }
+                        x = (double)(((xp-112)*2.0f+160.0f)*(res.x/320.0f))+cursor_pos.x+window_pos.x;
+                        y = (double)((yp-31)*(res.y/256.0f))+cursor_pos.y+window_pos.y;
+                        draw_list->AddRectFilled(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), col_outer);
+                        draw_list->AddRect(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), col_inner, 0, 0, 2.0f);
+                        if (ImGui::IsMouseHoveringRect(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect))) {
+                            ImGui::BeginTooltip();
+                            ImGui::Text("Type: %s",event_type[event-1].c_str());
+                            ImGui::Separator();
+                            ImGui::Text("Scanline: %d",yp);
+                            ImGui::Text("Cycle: %d",xp);
+                            ImGui::EndTooltip();
+                        }
+                    }
+                }
+            }
         }
 
         ImGui::End();
         
+        //ImGui::ShowDemoWindow();
+
         if (visible_windows.memviewer) {
             ImGui::Begin("Memory Viewer",(bool *)&visible_windows.memviewer);
 
@@ -804,7 +861,7 @@ int main(int argc, char *argv[]) {
             ImGui::End();
         }
 
-        if (visible_windows.disasm) do_disasm((bool *)&visible_windows.disasm);
+        if (visible_windows.disasm) do_disasm((bool *)&visible_windows.disasm,(bool *)&visible_windows.do_event_viewer);
 
         ImGui::Render();
 
