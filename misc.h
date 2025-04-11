@@ -82,8 +82,8 @@ static inline void add_cycles(uint8_t cycles) {
 }
 
 static inline void add_contended_cycles() {
-    //const static uint8_t scanline_cycle_lut[8] = {3,2,1,0,0,6,5,4};
-    const static uint8_t scanline_cycle_lut[8] = {6,5,4,3,2,1,0,0};
+    const static uint8_t scanline_cycle_lut[8] = {3,2,1,0,0,6,5,4};
+    //const static uint8_t scanline_cycle_lut[8] = {6,5,4,3,2,1,0,0};
     int register scanline_cycle = ula.cycles%228;
     if (scanline_cycle >= 24 && scanline_cycle < 152) { // 24 + 128
         // "delay" the CPU by N cycles by just

@@ -524,7 +524,7 @@ int main(int argc, char *argv[]) {
     while (!has_ULA_quit()) {
 #endif
         main_zx();
-        do_mem_fade();
+        if (!paused) do_mem_fade();
 
         cur_frame++;
         if (cur_frame == (50*60)) {

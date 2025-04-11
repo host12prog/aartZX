@@ -409,14 +409,14 @@ void do_oneop() {
     // HLE .tap loading yipeeeee
     if (regs.pc == 0x56C && ula.rom_sel && do_tap) {
         // get tap block size (in 16-bit LE format)
-        if (ftell(tap) >= (tap_file_size-2)) {
+        if (ftell(tap) >= (tap_file_size-1)) {
             flags.c = 1;
             ret(true,false);
         } else {
-            uint16_t tap_size = fgetc(tap);
-            tap_size |= fgetc(tap)<<8;
+            int tap_size = fgetc(tap)-2;
+            tap_size += fgetc(tap)<<8;
             // compare it with DE
-            if ((tap_size-2) == REG_DE) {
+            if (tap_size == REG_DE) {
                 // now check if the first byte from the data block == A'
                 // if not then clear carry and execute ret
                 uint8_t data_block_byte = fgetc(tap);
@@ -454,10 +454,14 @@ void do_oneop() {
                 ret(true,false);
             }
         }
+        ula.audio_cycles_beeper = 8;
+        goto skip_step;
     }
 
     ula.audio_cycles_beeper = 0;
     step();
+
+skip_step:
 
     // ula video
     if (ula.cycles >= 228) advance_ULA();

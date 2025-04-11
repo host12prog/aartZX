@@ -34,6 +34,8 @@ static inline void call(uint16_t addr) {
     regs.pc = addr;
 }
 
+extern bool paused;
+
 // call function but it reads the immidiate from memory
 // and it has conditionals (ooooh)
 static inline void call_cond(bool cond, bool add_cycle) {
@@ -255,15 +257,36 @@ static inline void EDprefix(uint8_t opcode) {
             break;
         }
 
-        case 0x53: { // ld (nn), bc
+        case 0x53: { // ld (nn), de
             uint16_t addr = read16();
             writeZ80(addr, regs.e);
             writeZ80(addr+1, regs.d);
             break;
         }
 
-        case 0x4d: ret(true,false); regs.iff1 = regs.iff2; break; // reti (stubbed to be ret)
+        case 0x63: { // ld (nn), hl
+            uint16_t addr = read16();
+            writeZ80(addr, regs.l);
+            writeZ80(addr+1, regs.h);
+            break;
+        }
 
+        case 0x6b: { // ld hl, (nn)
+            uint16_t addr = read16();
+            regs.l = readZ80(addr);
+            regs.h = readZ80(addr+1);
+            break;
+        }
+
+        case 0x7d: // retn**
+        case 0x75:
+        case 0x6d:
+        case 0x65:
+        case 0x5d:
+        case 0x55:
+        case 0x45: ret(true,false); regs.iff1 = regs.iff2; break; // retn
+        case 0x4d: ret(true,false); break; // reti (stubbed to be ret)
+        
         case 0x4a: adchl(REG_BC); break; // add hl, bc
         case 0x5a: adchl(REG_DE); break; // add hl, de
         case 0x6a: adchl(REG_HL); break; // add hl, hl
@@ -513,6 +536,13 @@ static inline void EDprefix(uint8_t opcode) {
             break;
         }
 
+        case 0x7c: // neg* (* == undocumented)
+        case 0x74:
+        case 0x6c:
+        case 0x64:
+        case 0x5c:
+        case 0x54:
+        case 0x4c:
         case 0x44: regs.a = sub8(0,regs.a,0); break; // neg
 
         case 0x67: { // rrd
@@ -551,18 +581,99 @@ static inline void EDprefix(uint8_t opcode) {
         case 0x71: outZ80(REG_BC,0); break; // out (c), 0
         case 0x79: outZ80(REG_BC,regs.a); break;
 
-        // in (c), r8
-        case 0x40: regs.b = inZ80(REG_BC); break;
-        case 0x48: regs.c = inZ80(REG_BC); break;
-        case 0x50: regs.d = inZ80(REG_BC); break;
-        case 0x58: regs.e = inZ80(REG_BC); break;
-        case 0x60: regs.h = inZ80(REG_BC); break;
-        case 0x68: regs.l = inZ80(REG_BC); break;
-        case 0x70: inZ80(REG_BC); break;
-        case 0x78: regs.a = inZ80(REG_BC); break;
+        // in r8, (c)
+        case 0x40: {
+            regs.b = inZ80(REG_BC);
+            flags.h = 0;
+            flags.n = 0; 
+            flags.p = parity(regs.b); 
+            flags.z = regs.b == 0;
+            flags.s = regs.b>>7&1;
+            setXYF(regs.b);
+            break;
+        }
+        case 0x48: {
+            regs.c = inZ80(REG_BC);
+            flags.h = 0;
+            flags.n = 0; 
+            flags.p = parity(regs.c); 
+            flags.z = regs.c == 0;
+            flags.s = regs.c>>7&1;
+            setXYF(regs.c);
+            break;
+        }
+        case 0x50: {
+            regs.d = inZ80(REG_BC);
+            flags.h = 0;
+            flags.n = 0; 
+            flags.p = parity(regs.d); 
+            flags.z = regs.d == 0;
+            flags.s = regs.d>>7&1;
+            setXYF(regs.d);
+            break;
+        }
+        case 0x58: {
+            regs.e = inZ80(REG_BC);
+            flags.h = 0;
+            flags.n = 0; 
+            flags.p = parity(regs.e); 
+            flags.z = regs.e == 0;
+            flags.s = regs.e>>7&1;
+            setXYF(regs.e);
+            break;
+        }
+        case 0x60: {
+            regs.h = inZ80(REG_BC);
+            flags.h = 0;
+            flags.n = 0; 
+            flags.p = parity(regs.h); 
+            flags.z = regs.h == 0;
+            flags.s = regs.h>>7&1;
+            setXYF(regs.h);
+            break;
+        }
+        case 0x68: {
+            regs.l = inZ80(REG_BC);
+            flags.h = 0;
+            flags.n = 0; 
+            flags.p = parity(regs.l); 
+            flags.z = regs.l == 0;
+            flags.s = regs.l>>7&1;
+            setXYF(regs.l);
+            break;
+        }
 
+        case 0x70: { // in (c)
+            uint8_t reg = inZ80(REG_BC);
+            flags.h = 0;
+            flags.n = 0; 
+            flags.p = parity(reg); 
+            flags.z = reg == 0;
+            flags.s = reg>>7&1;
+            setXYF(reg);
+            break;
+        }
+
+        case 0x78: { // in a, (c)
+            regs.a = inZ80(REG_BC);
+            flags.h = 0;
+            flags.n = 0; 
+            flags.p = parity(regs.a); 
+            flags.z = regs.a == 0;
+            flags.s = regs.a>>7&1;
+            setXYF(regs.a);
+            break;
+        }
+
+        case 0x6e:
+        case 0x66:
+        case 0x4e:
         case 0x46: regs.im = 0; break; // IM 0
+        
+        case 0x76:
         case 0x56: regs.im = 1; break; // IM 1
+        
+        case 0x7e:
         case 0x5e: regs.im = 2; break; // IM 2
 
         case 0x47: regs.i = regs.a; break; // ld i, a
@@ -586,7 +697,7 @@ static inline void EDprefix(uint8_t opcode) {
 
         default:
             printf("\nUNSUPPORTED ED OPCODE %04x: %02x\n",regs.pc-1,opcode);
-            ula.quit = 1; // exit(0);
+            //ula.quit = 1; // exit(0);
             break;
     }
 }
@@ -741,6 +852,16 @@ static inline void index_cb(uint16_t *ind) {
         case 0x80: { // res x, (ix+d)
             uint8_t val = readZ80(addr);
             val &= ~(1 << ((opcode>>3)&7));
+            switch (opcode&7) { // write to register
+                case 0: regs.b = val; break;
+                case 1: regs.c = val; break;
+                case 2: regs.d = val; break;
+                case 3: regs.e = val; break;
+                case 4: regs.h = val; break;
+                case 5: regs.l = val; break;
+                case 6: break;
+                case 7: regs.a = val; break;
+            }
             writeZ80(addr,val);
             add_cycles(23);
             break;
@@ -749,6 +870,16 @@ static inline void index_cb(uint16_t *ind) {
         case 0xC0: { // set x, (ix+d)
             uint8_t val = readZ80(addr);
             val |= 1 << ((opcode>>3)&7);
+            switch (opcode&7) { // write to register
+                case 0: regs.b = val; break;
+                case 1: regs.c = val; break;
+                case 2: regs.d = val; break;
+                case 3: regs.e = val; break;
+                case 4: regs.h = val; break;
+                case 5: regs.l = val; break;
+                case 6: break;
+                case 7: regs.a = val; break;
+            }
             writeZ80(addr,val);
             add_cycles(23);
             break;
@@ -1025,6 +1156,17 @@ static inline int index_step(uint16_t *ind, uint8_t opcode) {
         case 0xe9: regs.pc = *ind; break; // jp ix
         case 0xf9: regs.sp = *ind; break; // ld sp, ix
 
+        case 0xe3: { // ex (sp), ix
+            uint8_t temp = readZ80(regs.sp); 
+            writeZ80(regs.sp,(*ind)&0xff);
+            (*ind) = ((*ind)&0xff00)|temp;
+
+            temp = readZ80(regs.sp+1); 
+            writeZ80(regs.sp+1,((*ind)>>8)&0xff);
+            (*ind) = (((uint16_t)temp)<<8)|((*ind)&0xff);
+            break;
+        }
+
         default: {
             if (opcode >= 0x40 && opcode < 0x80) return 2;
             else return 1;
@@ -1043,12 +1185,12 @@ const uint8_t IX_IY_cycle_lut[256] = {
     4,4,4,4,4,4,4,4,4,15,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,15,4,4,4,4,4,4,4,14,20,10,8,8,11,4,4,15,20,10,8,8,11,4,4,4,4,4,23,23,19,4,4,15,4,4,4,4,4,4,4,4,4,4,8,8,19,4,4,4,4,4,8,8,19,4,4,4,4,4,8,8,19,4,4,4,4,4,8,8,19,4,8,8,8,8,8,8,19,8,8,8,8,8,8,8,19,8,19,19,19,19,19,19,4,19,4,4,4,4,8,8,19,4,4,4,4,4,8,8,19,4,4,4,4,4,8,8,19,4,4,4,4,4,8,8,19,4,4,4,4,4,8,8,19,4,4,4,4,4,8,8,19,4,4,4,4,4,8,8,19,4,4,4,4,4,8,8,19,4,4,4,4,4,8,8,19,4,4,4,4,4,4,4,4,4,4,4,4,0,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,14,4,23,4,15,4,4,4,8,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,10,4,4,4,4,4,4
 };
 
-inline static void check_IRQ();
+inline static void check_IRQ(uint8_t opcode);
 
 void step() {
     if (regs.halt) { // if halted, advance 4 cycles and check IRQ
         add_cycles(4);
-        check_IRQ();
+        check_IRQ(0);
         return;
     }
 
@@ -1432,8 +1574,8 @@ do_opcode_no_cyc:
         case 0xee: regs.a = xor8(regs.a,read_PC()); break;
         case 0xf6: regs.a = or8(regs.a,read_PC()); break;
 
-        case 0xf3: regs.iff2 = 0; break; // di
-        case 0xfb: regs.iff2 = 1; break; // ei
+        case 0xf3: regs.iff1 = 0; regs.iff2 = 0; break; // di
+        case 0xfb: regs.iff1 = 1; regs.iff2 = 1; break; // ei
 
         case 0x22: { // ld (nn), hl
             uint16_t addr = read16();
@@ -1538,15 +1680,14 @@ do_opcode_no_cyc:
     }
 
     // check for IRQ's
-    check_IRQ();
+    check_IRQ(opcode);
 }
 
-inline static void check_IRQ() {
-    if ((regs.has_int > -1) && regs.iff1) {
+inline static void check_IRQ(uint8_t opcode) {
+    if ((regs.has_int > -1) && regs.iff1 && opcode != 0xfb) {
         inc_R;
         regs.halt = 0;
         regs.iff1 = 0;
-        regs.iff2 = 0;
         switch (regs.im&3) {
             case 0: // IM 0
                 add_cycles(11);
@@ -1564,10 +1705,8 @@ inline static void check_IRQ() {
                 call(imm);
                 break;
             }
-            case 3: ula.quit = 1; // exit(0); // IM 3
+            case 3: break; //ula.quit = 1; // exit(0); // IM 3
         }
         regs.has_int = -1; // NOTE: THIS LINE OF CODE IS SPECIFICALLY FOR ZX SPECTRUM VBLANK IRQS
     }
-
-    regs.iff1 = regs.iff2;
 }

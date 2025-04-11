@@ -273,7 +273,7 @@ static inline uint8_t inZ80(uint16_t addr) {
                 key ^= temp_key; // xor with key
             }
         }
-        return key;
+        return key|0xA0;
     }
 }
 
