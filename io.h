@@ -182,12 +182,16 @@ static void do_events() {
 static inline void advance_ULA() {
     ula.cycles_leftover = (ula.cycles-228);
     ula.cycles -= 228;
+
+    ula.scanline = (ula.scanline+1)%311;
+
     if (ula.scanline == 0) { // fire VBLANK at the start of each frame
         regs.has_int = 0xff;
         memset(event_viewer,0,228*311*sizeof(uint8_t));
         // TODO: remove this line
         // regs.r = 255;
     }
+
 
     if (ula.scanline >= 31 && ula.scanline < 287) {
         draw_ULA_border(ula.scanline-31);
@@ -197,7 +201,7 @@ static inline void advance_ULA() {
         draw_ULA_scanline(ula.scanline-63);
     }
 
-    if (ula.scanline == 63 && visible_windows.contended) {
+    if (ula.scanline == 62 && visible_windows.contended) {
         ula.do_contended = true;
     }
     if (ula.scanline == 255) {
@@ -218,8 +222,6 @@ static inline void advance_ULA() {
 
         ula.frame = (ula.frame+1)&63;
     }
-
-    ula.scanline = (ula.scanline+1)%311;
 }
 
 #define WRITE_EVENT(num) \
@@ -245,20 +247,19 @@ struct ayumi AY_chip1;
 
 static inline uint8_t inZ80(uint16_t addr) {
     // very crude i know
-    if ((!(addr&1)) || (addr&0x8000)) if (ula.do_contended) add_contended_cycles();
-
+    uint8_t val;
     #ifdef AY_EMULATION
         if ((addr&0x8000) && !(addr&2)) {
             WRITE_EVENT(3);
             #ifdef AY_TURBOSOUND
-                return AY_regs[AY_ind&0x1f];
+                val = AY_regs[AY_ind&0x1f];
             #else
-                return AY_regs[AY_ind&0xf];
+                val = AY_regs[AY_ind&0xf];
             #endif
         }
     #endif
     if (addr&1) {
-        return 0xFF;
+        val = floating_bus(ula.cycles%228,ula.scanline);
     } else {
         WRITE_EVENT(1);
         // read keyboard matrix
@@ -273,13 +274,15 @@ static inline uint8_t inZ80(uint16_t addr) {
                 key ^= temp_key; // xor with key
             }
         }
-        return key|0xA0;
+        val =  key|0xA0;
     }
+    if (ula.do_contended) add_contended_cycles(addr);
+    return val;
 }
 
 static inline void outZ80(uint16_t addr, uint8_t val) {
     // very crude i know
-    if ((!(addr&1)) || (addr&0x8000)) if (ula.do_contended) add_contended_cycles();
+    if (ula.do_contended) add_contended_cycles(addr);
 
     if (!(addr&0x8000) && !(addr&2)) {
         // paging

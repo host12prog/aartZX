@@ -462,7 +462,6 @@ void do_oneop() {
 
     ula.audio_cycles_beeper = 0;
     op = step();
-
 skip_step:
 
     // ula video

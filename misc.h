@@ -81,15 +81,59 @@ static inline void add_cycles(uint8_t cycles) {
     ula.debug_cycles += cycles;
 }
 
+// for ZX Spectrum memory contention
+static inline void sub_cycles(uint8_t cycles) {
+    //regs.cycles += cycles;
+    ula.cycles -= cycles;
+    ula.audio_cycles -= (uint16_t)cycles<<2;
+    ula.audio_cycles_beeper -= cycles;
+    ula.debug_cycles -= cycles;
+}
+
+
 static inline void add_contended_cycles() {
-    const static uint8_t scanline_cycle_lut[8] = {3,2,1,0,0,6,5,4};
-    //const static uint8_t scanline_cycle_lut[8] = {6,5,4,3,2,1,0,0};
+    //const static uint8_t scanline_cycle_lut[8] = {3,2,1,0,0,6,5,4};
+    const static uint8_t scanline_cycle_lut[8] = {6,5,4,3,2,1,0,0};
     int register scanline_cycle = ula.cycles%228;
-    if (scanline_cycle >= 24 && scanline_cycle < 152) { // 24 + 128
+    if (scanline_cycle < 128) { // 24 + 128
         // "delay" the CPU by N cycles by just
         // adding to the cycles variable
         add_cycles(scanline_cycle_lut[scanline_cycle&7]);
     }
+}
+
+static inline uint8_t floating_bus(uint16_t scanline_cycle, uint16_t scanline) {
+    //const static uint8_t scanline_cycle_lut[8] = {3,2,1,0,0,6,5,4};
+    if ((scanline_cycle) < 128 && ula.do_contended) { // 24 + 128
+        // referenced from https://sinclair.wiki.zxnet.co.uk/wiki/Floating_bus
+        uint16_t LY = scanline==62?0:scanline-63;
+        uint16_t ypos = LY>>3; // get tile row number
+        scanline_cycle--; // for late-timing ULA's
+        scanline_cycle &= 0x7f;
+        uint16_t x = scanline_cycle;
+        switch (scanline_cycle&7) {
+            case 0:   // bitmap
+            case 2: { // bitmap+1
+                register uint16_t tile_addr = ((x>>2)|((ypos&7)<<5))|((LY&7)<<8)+((ypos>>3)<<11);
+                return mem[((tile_addr+(x>>1&1))&0x3fff)|((ula.gfx_sel?7:5)<<14)];
+                break;
+            }
+            case 1:   // attr
+            case 3: { // attr+1
+                register uint16_t addr = ((x>>2)|(ypos<<5))+6144;
+                return mem[((addr+(x>>1&1))&0x3fff)|((ula.gfx_sel?7:5)<<14)];
+                break;
+            }
+            case 4:
+            case 5:
+            case 6:
+            case 7:
+            default:
+                return 0xFF;
+                break;
+        }
+    }
+    return 0xff;
 }
 
 static inline void advance_ULA();

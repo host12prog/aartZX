@@ -1220,12 +1220,12 @@ uint8_t step() {
         add_cycles(4);
         return 0 ;
     }
-
+    
     uint8_t opcode = read_PC();
 do_opcode:
     inc_R;
-    add_cycles(cycle_lut[opcode]);
 do_opcode_no_cyc:
+    add_cycles(cycle_lut[opcode]);
     //printf("%04x: %02x\n",regs.pc-1,opcode);
     switch (opcode) {
         case 0x00: break; // nop (yay)
@@ -1479,8 +1479,10 @@ do_opcode_no_cyc:
             if (opcode == 0xDD || opcode == 0xED || opcode == 0xFD)
                 goto do_opcode;
 
-            if (opcode == 0xD9 || opcode == 0xEB)
+            if (opcode == 0xD9 || opcode == 0xEB) {
+                add_cycles(IX_IY_cycle_lut[opcode]);
                 goto do_opcode;
+            }
 
             if (opcode == 0xCB) {
                 index_cb(&regs.ix);
@@ -1502,8 +1504,10 @@ do_opcode_no_cyc:
             if (opcode == 0xDD || opcode == 0xED || opcode == 0xFD)
                 goto do_opcode;
 
-            if (opcode == 0xD9 || opcode == 0xEB)
+            if (opcode == 0xD9 || opcode == 0xEB) {
+                add_cycles(IX_IY_cycle_lut[opcode]);
                 goto do_opcode;
+            }
 
             if (opcode == 0xCB) {
                 index_cb(&regs.iy);
@@ -1707,6 +1711,7 @@ do_opcode_no_cyc:
     }
 
     // check for IRQ's later
+    return opcode;
 }
 
 inline static void check_IRQ(uint8_t opcode) {
