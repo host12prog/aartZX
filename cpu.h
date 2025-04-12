@@ -497,18 +497,28 @@ static inline void EDprefix(uint8_t opcode) {
         }
 
         case 0xA3: { // outi
-            outZ80(REG_BC,readZ80(REG_HL));
+            uint8_t val = readZ80(REG_HL);
+            outZ80(REG_BC,val);
             regs.b = sub8(regs.b,1,0);
-            flags.n = 1;
             write_r16(regs.h,regs.l,REG_HL+1);
+            flags.n = val>>7;
+            flags.c = (val+regs.l)>255;
+            //flags.h = flags.c;
+            flags.p = parity(((val+regs.l)&7)^regs.b);
+            setXYF(regs.pc>>8);
             break;
         }
 
         case 0xB3: { // otir
-            outZ80(REG_BC,readZ80(REG_HL));
-            regs.b = sub8(regs.b,1,0);
-            flags.n = 1;
+            uint8_t val = readZ80(REG_HL);
+            outZ80(REG_BC,val);
             write_r16(regs.h,regs.l,REG_HL+1);
+            flags.n = val>>7;
+            flags.c = (val+regs.l)>255;
+            //flags.h = flags.c;
+            flags.p = parity(((val+regs.l)&7)^regs.b);
+            regs.b = sub8(regs.b,1,0);
+            setXYF(regs.pc>>8);
             if (regs.b != 0) {
                 regs.pc -= 2;
                 add_cycles(5);
@@ -517,18 +527,28 @@ static inline void EDprefix(uint8_t opcode) {
         }
 
         case 0xAB: { // outd
-            outZ80(REG_BC,readZ80(REG_HL));
+            uint8_t val = readZ80(REG_HL);
+            outZ80(REG_BC,val);
             regs.b = sub8(regs.b,1,0);
-            flags.n = 1;
             write_r16(regs.h,regs.l,REG_HL-1);
+            flags.n = val>>7;
+            flags.c = (val+regs.l)>255;
+            //flags.h = flags.c;
+            flags.p = parity(((val+regs.l)&7)^regs.b);
+            setXYF(regs.pc>>8);
             break;
         }
 
-        case 0xBB: { // odir
-            outZ80(REG_BC,readZ80(REG_HL));
+        case 0xBB: { // otdr
+            uint8_t val = readZ80(REG_HL);
+            outZ80(REG_BC,val);
             regs.b = sub8(regs.b,1,0);
-            flags.n = 1;
             write_r16(regs.h,regs.l,REG_HL-1);
+            flags.n = val>>7;
+            flags.c = (val+regs.l)>255;
+            flags.h = flags.c;
+            flags.p = parity(((val+regs.l)&7)^regs.b);
+            setXYF(regs.pc>>8);
             if (regs.b != 0) {
                 regs.pc -= 2;
                 add_cycles(5);
@@ -684,6 +704,7 @@ static inline void EDprefix(uint8_t opcode) {
             flags.n = 0; 
             flags.z = regs.a == 0;
             flags.s = regs.a>>7&1;
+            setXYF(regs.a);
             break;
         case 0x4f: regs.r = regs.a; break; // ld r, a
         case 0x5f: // ld a, r
@@ -693,6 +714,11 @@ static inline void EDprefix(uint8_t opcode) {
             flags.n = 0; 
             flags.z = regs.a == 0;
             flags.s = regs.a>>7&1;
+            setXYF(regs.a);
+            break;
+
+        case 0x77: // nop*
+        case 0x7f:
             break;
 
         default:
@@ -920,8 +946,8 @@ static inline void cb_step() {
         case 0x40: { // bit
             flags.n = 0;
             flags.h = 1;
+            setXYF(val);
             val &= 1 << ((opcode>>3)&7);
-            setXYF2(val);
             flags.z = val == 0;
             flags.p = val == 0;
             flags.s = val>>7&1;
@@ -1168,8 +1194,10 @@ static inline int index_step(uint16_t *ind, uint8_t opcode) {
         }
 
         default: {
-            if (opcode >= 0x40 && opcode < 0x80) return 2;
-            else return 1;
+            //if (opcode >= 0x40 && opcode < 0xC0) return 2;
+            //if (opcode < 0xC0) return 2;
+            //else return 1;
+            return 2;
         }
     }
 
@@ -1187,16 +1215,15 @@ const uint8_t IX_IY_cycle_lut[256] = {
 
 inline static void check_IRQ(uint8_t opcode);
 
-void step() {
+uint8_t step() {
     if (regs.halt) { // if halted, advance 4 cycles and check IRQ
         add_cycles(4);
-        check_IRQ(0);
-        return;
+        return 0 ;
     }
 
-    inc_R;
     uint8_t opcode = read_PC();
 do_opcode:
+    inc_R;
     add_cycles(cycle_lut[opcode]);
 do_opcode_no_cyc:
     //printf("%04x: %02x\n",regs.pc-1,opcode);
@@ -1679,12 +1706,11 @@ do_opcode_no_cyc:
             break;        
     }
 
-    // check for IRQ's
-    check_IRQ(opcode);
+    // check for IRQ's later
 }
 
 inline static void check_IRQ(uint8_t opcode) {
-    if ((regs.has_int > -1) && regs.iff1 && opcode != 0xfb) {
+    if ((regs.has_int > -1) && regs.iff1 && (opcode != 0xfb)) {
         inc_R;
         regs.halt = 0;
         regs.iff1 = 0;
@@ -1700,8 +1726,8 @@ inline static void check_IRQ(uint8_t opcode) {
             case 2: { // IM 2
                 add_cycles(19);
                 // TODO: FIX IM 2 R REGISTER
-                uint16_t imm = (uint16_t)readZ80((regs.i<<8|255));
-                imm |= (uint16_t)readZ80((regs.i<<8|255)+1)<<8;
+                uint16_t imm = (uint16_t)readZ80(((regs.i<<8)|regs.has_int));
+                imm |= (uint16_t)readZ80(((regs.i<<8)|regs.has_int)+1)<<8;
                 call(imm);
                 break;
             }

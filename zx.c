@@ -405,6 +405,8 @@ void init_zx(int argc, char *argv[], bool init_files) {
     SDL_PauseAudio(0);
 }
 
+uint8_t op;
+
 void do_oneop() {
     // HLE .tap loading yipeeeee
     if (regs.pc == 0x56C && ula.rom_sel && do_tap) {
@@ -459,12 +461,14 @@ void do_oneop() {
     }
 
     ula.audio_cycles_beeper = 0;
-    step();
+    op = step();
 
 skip_step:
 
     // ula video
     if (ula.cycles >= 228) advance_ULA();
+
+    check_IRQ(op);
 
     // audio buffer
     int16_t beeper = (ula.ULA_FE>>4&1?((8192-1024)*2):0);

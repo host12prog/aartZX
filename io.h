@@ -183,7 +183,7 @@ static inline void advance_ULA() {
     ula.cycles_leftover = (ula.cycles-228);
     ula.cycles -= 228;
     if (ula.scanline == 0) { // fire VBLANK at the start of each frame
-        regs.has_int = 0x38;
+        regs.has_int = 0xff;
         memset(event_viewer,0,228*311*sizeof(uint8_t));
         // TODO: remove this line
         // regs.r = 255;
@@ -258,7 +258,7 @@ static inline uint8_t inZ80(uint16_t addr) {
         }
     #endif
     if (addr&1) {
-        return 0;
+        return 0xFF;
     } else {
         WRITE_EVENT(1);
         // read keyboard matrix
