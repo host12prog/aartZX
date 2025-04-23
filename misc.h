@@ -233,14 +233,7 @@ void writeZ80(uint16_t addr, uint8_t val) {
 static inline uint8_t inZ80(uint16_t addr);
 static inline void outZ80(uint16_t addr, uint8_t val);
 
-// read a 16-bit word from memory
-static inline uint16_t read16() {
-    uint16_t imm = (uint16_t)read_PC();
-    imm |= (uint16_t)read_PC()<<8;
-    return imm;
-}
-
-static inline uint8_t read_PC() {
+uint8_t read_PC() {
     if (visible_windows.exec) {
         switch (regs.pc & 0xC000) {
             case 0x0000: // ROM (not contended, obviously)
@@ -260,7 +253,40 @@ static inline uint8_t read_PC() {
                 break;
         }
     }
-    return readZ80_contended(regs.pc++);
+    uint8_t val = readZ80_contended(regs.pc++);
+    add_cycles(3);
+    return val;
 }
+
+// read a 16-bit word from memory
+static inline uint16_t read16() {
+    uint16_t imm = (uint16_t)read_PC();
+    imm |= (uint16_t)read_PC()<<8;
+    return imm;
+}
+
+void read_PC_ext(uint16_t addr) {
+    if (visible_windows.exec) {
+        switch (regs.pc & 0xC000) {
+            case 0x0000: // ROM (not contended, obviously)
+                zx_rom_highlight[(regs.pc&0x3fff)|(ula.rom_sel<<14)] = 0xFF000000|visible_windows.exec_col;
+                break;
+
+            case 0x4000: // RAM bank 5 (contended)
+                mem_highlight[(regs.pc&0x3fff)|(5<<14)] = 0xFF000000|visible_windows.exec_col;
+                break;
+
+            case 0x8000: // RAM bank 2 (not contended)
+                mem_highlight[(regs.pc&0x3fff)|(2<<14)] = 0xFF000000|visible_windows.exec_col;
+                break;
+
+            case 0xC000: // RAM bank X (*COULD* be contended based off current RAM bank)
+                mem_highlight[(regs.pc&0x3fff)|((ula.ram_bank&7)<<14)] = 0xFF000000|visible_windows.exec_col;
+                break;
+        }
+    }
+}
+
+#define READ_PC_EXT(addr) read_PC_ext(addr)
 
 SDL_AudioDeviceID dev;

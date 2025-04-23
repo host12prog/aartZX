@@ -245,8 +245,35 @@ struct ayumi AY_chip1;
   #endif
 #endif
 
+void add_cycles_io(uint16_t addr) {
+    /*
+    High byte   |         | 
+    in 40 - 7F? | Low bit | Contention pattern  
+    ------------+---------+-------------------
+         No     |  Reset  | N:1, C:3
+         No     |   Set   | N:4
+        Yes     |  Reset  | C:1, C:3
+        Yes     |   Set   | C:1, C:1, C:1, C:1
+    */
+    if (addr >= 0x4000 && addr < 0x8000) {
+        if (addr&1) {
+            add_contended_cycles(); add_cycles(1);
+            add_contended_cycles(); add_cycles(1);
+            add_contended_cycles(); add_cycles(1);
+        } else {
+            add_contended_cycles(); add_cycles(3);
+        }
+    } else {
+        if (addr&1) {
+            add_cycles(3);
+        } else {
+            add_contended_cycles(); add_cycles(3);
+        }
+    }
+}
 static inline uint8_t inZ80(uint16_t addr) {
     // very crude i know
+    if (addr >= 0x4000 && addr < 0x8000) { add_contended_cycles(); } add_cycles(1);
     uint8_t val;
     #ifdef AY_EMULATION
         if ((addr&0x8000) && !(addr&2)) {
@@ -276,14 +303,13 @@ static inline uint8_t inZ80(uint16_t addr) {
         }
         val =  key|0xA0;
     }
-    if (ula.do_contended) add_contended_cycles(addr);
+    add_cycles_io(addr);
     return val;
 }
 
 static inline void outZ80(uint16_t addr, uint8_t val) {
     // very crude i know
-    if (ula.do_contended) add_contended_cycles(addr);
-
+    if (addr >= 0x4000 && addr < 0x8000) { add_contended_cycles(); } add_cycles(1);
     if (!(addr&0x8000) && !(addr&2)) {
         // paging
         // 00DRGMMM
@@ -329,6 +355,7 @@ static inline void outZ80(uint16_t addr, uint8_t val) {
         ula.ULA_FE = val;
         WRITE_EVENT(0);
     }
+    add_cycles_io(addr);
 }
 
 void update_ayumi_state(struct ayumi* ay, uint8_t* r, uint8_t addr) {
