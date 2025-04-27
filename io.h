@@ -283,6 +283,8 @@ static inline uint8_t inZ80(uint16_t addr) {
             #else
                 val = AY_regs[AY_ind&0xf];
             #endif
+            add_cycles_io(addr);
+            return val;
         }
     #endif
     if (addr&1) {

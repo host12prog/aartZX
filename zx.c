@@ -264,7 +264,7 @@ void init_zx(int argc, char *argv[], bool init_files) {
         zx_rom = (uint8_t*)malloc(32768*sizeof(uint8_t));
 
         if (argc > 2) { // read bios file from CLI arguments
-            FILE *f = fopen("128k.bin","rb");
+            FILE *f = fopen(argv[2],"rb");
             assert(f);
             for (int i = 0; i < 32768; i++) {
                 zx_rom[i] = fgetc(f);
