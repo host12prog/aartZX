@@ -636,7 +636,7 @@ skip_step:
 
             #ifdef AUDIO_SYNC
                 int now = SDL_GetTicks();
-                if (ula.time == -69) ula.time = now;
+                if (ula.time == -69) ula.time = now + (1000/50);
                 if (ula.time > now) {
                     now = ula.time - now;
                     SDL_Delay(now);
