@@ -99,6 +99,13 @@ void callback(void *udata, uint8_t *stream, int len)
 FILE *tap;
 int tap_file_size;
 bool do_tap;
+
+enum FILE_EXTENSIONS {
+    TAP_FILE,
+    SNA_FILE
+};
+
+int file_ext;
 int cur_time_rewind = 0;
 int cur_mempos_rewind = 0;
 
@@ -235,15 +242,123 @@ bool has_ULA_quit() {
 
 SDL_Renderer* get_SDL_renderer();
 
+// https://stackoverflow.com/questions/5309471/getting-file-extension-in-c#5309508
+const char *get_filename_ext(const char *filename) {
+    const char *dot = strrchr(filename, '.');
+    if(!dot || dot == filename) return "";
+    return dot + 1;
+}
+
+static void read_SNA_header() {
+    regs.i = fgetc(tap); // I
+    regs.ls = fgetc(tap); // HL'
+    regs.hs = fgetc(tap);
+    regs.es = fgetc(tap); // DE'
+    regs.ds = fgetc(tap);
+    regs.cs = fgetc(tap); // BC'
+    regs.bs = fgetc(tap);
+    regs.fs = fgetc(tap); // AF'
+    regs.as = fgetc(tap);
+
+    regs.l = fgetc(tap); // HL
+    regs.h = fgetc(tap);
+    regs.e = fgetc(tap); // DE
+    regs.d = fgetc(tap);
+    regs.c = fgetc(tap); // BC
+    regs.b = fgetc(tap);
+    regs.iy = fgetc(tap); // IY
+    regs.iy |= ((uint16_t)fgetc(tap))<<8;
+    regs.ix = fgetc(tap); // IX
+    regs.ix |= ((uint16_t)fgetc(tap))<<8;
+
+    // IFF1 and IFF2
+    uint8_t intr_bits = fgetc(tap);
+    regs.iff1 = intr_bits&1;
+    regs.iff2 = intr_bits>>2&1;
+
+    regs.r = fgetc(tap); // R
+    
+    // AF
+    uint16_t af_reg = fgetc(tap);
+    af_reg |= ((uint16_t)fgetc(tap))<<8;
+    write_AF(af_reg);
+
+    regs.sp = fgetc(tap); // SP
+    regs.sp |= ((uint16_t)fgetc(tap))<<8;
+
+    regs.im = fgetc(tap)&3; // IM
+
+    ula.ULA_FE = fgetc(tap)&7; // ULA border color
+}
+
+void read_SNA() {
+    if (tap_file_size == 49179) {
+        // 48k SNA file
+        // read header
+        read_SNA_header();
+        // set 0x7FFD bank reg to be 48k compatible
+        outZ80(0x7FFD,0x10);
+        // write to memory
+        for (size_t i = 0; i < 49152; i++) {
+            writeZ80(i+0x4000,fgetc(tap));
+        }
+        EDprefix(0x45); // execute RETN
+    } else if (tap_file_size == 131103 || tap_file_size == 147487) {
+        // 128k SNA file
+        read_SNA_header();
+        // write to 0x7FFD
+        long fpos = ftell(tap);
+        fseek(tap, 49181L, SEEK_SET);
+        outZ80(0x7FFD,fgetc(tap));
+        fseek(tap, fpos, SEEK_SET);
+
+        for (size_t i = 0; i < 16384; i++) mem[i|(5<<14)] = fgetc(tap); // write to bank 5
+        for (size_t i = 0; i < 16384; i++) mem[i|(2<<14)] = fgetc(tap); // write to bank 2
+        for (size_t i = 0; i < 16384; i++) mem[i|(ula.ram_bank<<14)] = fgetc(tap); // and bank N
+        regs.pc = fgetc(tap); // PC
+        regs.pc |= ((uint16_t)fgetc(tap))<<8;
+        fgetc(tap); // 0x7FFD value (already written)
+        fgetc(tap); // TR-DOS paged? (we don't have TR-DOS in the emulator yet)
+
+        // check for which other banks to load
+        static uint8_t banks_load[8];
+        for (size_t i = 0; i < 8; i++) banks_load[i] = i;
+        // eliminate bank 2 and 5 (since we loaded them in the 48k chunk anyway)
+        banks_load[2] = 255;
+        banks_load[5] = 255;
+        // eliminate bank N (since again, we loaded it through the 48k chunk...)
+        banks_load[ula.ram_bank] = -1;
+        for (size_t i = 0; i < 8; i++) {
+            if (banks_load[i] != 255) {
+                uint8_t bank = banks_load[i];
+                for (size_t p = 0; p < 16384; p++) {
+                    mem[p|(bank<<14)] = fgetc(tap);
+                }   
+            }
+        }
+    } else {
+        // fuck it, read it as .tap
+        file_ext = TAP_FILE;
+    }
+}
+
 void load_file(char *file) {
     if (do_tap) fclose(tap);
     do_tap = true;
     tap_file_size = 0;
     tap = fopen(file,"rb");
+
+    const char *ext_str = get_filename_ext(file);
+    file_ext = TAP_FILE;
+    // if (strcmp(ext_str,"tap") == 0) file_ext = TAP_FILE;
+    if (strcmp(ext_str,"sna") == 0) file_ext = SNA_FILE;
+
     // get file size
     fseek(tap, 0L, SEEK_END);
     tap_file_size = (int)ftell(tap);
     fseek(tap, 0L, SEEK_SET);
+
+    if (file_ext == SNA_FILE) read_SNA();
 }
 
 void AY_set_pan(int pan_type);
@@ -254,7 +369,13 @@ void init_zx(int argc, char *argv[], bool init_files) {
         do_tap = argc > 1;
         tap_file_size = 0;
         if (do_tap) {
+            // NOTE: for people reading this source, modify any changes here in load_file too!!
             tap = fopen(argv[1],"rb");
+
+            const char *ext_str = get_filename_ext(argv[1]);
+            file_ext = TAP_FILE;
+            // if (strcmp(ext_str,"tap") == 0) file_ext = TAP_FILE;
+            if (strcmp(ext_str,"sna") == 0) file_ext = SNA_FILE;
             // get file size
             fseek(tap, 0L, SEEK_END);
             tap_file_size = (int)ftell(tap);
@@ -386,10 +507,11 @@ void init_zx(int argc, char *argv[], bool init_files) {
         AY_set_pan(visible_windows.aypan);
     #endif
 
-    ula.time = SDL_GetTicks() + 20;
     memset(ula.key_matrix_buf,0,sizeof(ula.key_matrix_buf)); // clear key matrix buffer
     memset(ula.key_matrix,0,sizeof(ula.key_matrix)); // clear key matrix
     ula.quit = false;
+
+    if (file_ext == SNA_FILE && do_tap) read_SNA();
 
     paused_prev = false;
 
@@ -403,13 +525,15 @@ void init_zx(int argc, char *argv[], bool init_files) {
 
     dev = SDL_OpenAudio(&wanted, NULL);
     SDL_PauseAudio(0);
+
+    ula.time = -69; //DL_GetTicks() + 20;
 }
 
 uint8_t op;
 
 void do_oneop() {
     // HLE .tap loading yipeeeee
-    if (regs.pc == 0x56C && ula.rom_sel && do_tap) {
+    if (regs.pc == 0x56C && ula.rom_sel && do_tap && file_ext == TAP_FILE) {
         // get tap block size (in 16-bit LE format)
         if (ftell(tap) >= (tap_file_size-1)) {
             flags.c = 1;
@@ -512,6 +636,7 @@ skip_step:
 
             #ifdef AUDIO_SYNC
                 int now = SDL_GetTicks();
+                if (ula.time == -69) ula.time = now;
                 if (ula.time > now) {
                     now = ula.time - now;
                     SDL_Delay(now);

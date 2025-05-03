@@ -236,7 +236,7 @@ void ShowExampleAppDockSpace(bool* p_open)
             if (ImGui::MenuItem("open file")) {
                 audio_paused = true;
                 auto f = pfd::open_file("Choose a file to read", pfd::path::home(),
-                            { "Tape Files (.tap)", "*.tap" },
+                            { "Tape Files (.tap)", "*.tap", "Snapshow Files (.sna)", "*.sna" },
                             pfd::opt::none).result();
                 if (!f.empty()) {
                     load_file((char *)f[0].c_str());

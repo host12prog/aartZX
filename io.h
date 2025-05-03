@@ -382,9 +382,9 @@ void update_ayumi_state(struct ayumi* ay, uint8_t* r, uint8_t addr) {
     case 8:
     case 9:
     case 10:
-        ayumi_set_mixer(ay, 0, r[7] & 1, (r[7] >> 3) & 1, r[8] >> 4);
-        ayumi_set_mixer(ay, 1, (r[7] >> 1) & 1, (r[7] >> 4) & 1, r[9] >> 4);
-        ayumi_set_mixer(ay, 2, (r[7] >> 2) & 1, (r[7] >> 5) & 1, r[10] >> 4);
+        ayumi_set_mixer(ay, 0, r[7] & 1, (r[7] >> 3) & 1, (r[8] >> 4) & 1);
+        ayumi_set_mixer(ay, 1, (r[7] >> 1) & 1, (r[7] >> 4) & 1, (r[9] >> 4) & 1);
+        ayumi_set_mixer(ay, 2, (r[7] >> 2) & 1, (r[7] >> 5) & 1, (r[10] >> 4) & 1);
         ayumi_set_volume(ay, 0, r[8] & 0xf);
         ayumi_set_volume(ay, 1, r[9] & 0xf);
         ayumi_set_volume(ay, 2, r[10] & 0xf);
