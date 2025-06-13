@@ -100,6 +100,7 @@ extern "C" {
     extern int get_vcount();
     extern int get_hcount();
     extern uint8_t *event_viewer;
+    extern uint32_t get_contended_cycles();
 }
 
 bool LoadTextureFromMemory(GLuint* out_texture) {
@@ -626,6 +627,9 @@ int main(int argc, char *argv[]) {
 
             ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
             ImGui::Text("Rewind Buffer Info: %d / %d",cur_mempos_rewind,REWIND_MEM);
+            ImGui::NewLine();
+            ImGui::Text("%d cycles have been used for memory contention",get_contended_cycles());
+            ImGui::Text("%.3f%% of CPU time has been used for memory contention",((double)get_contended_cycles())/(315000000.0/88.0/50.0)*100.0);
             ImGui::End();
         }
 

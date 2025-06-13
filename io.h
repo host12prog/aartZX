@@ -255,6 +255,10 @@ void add_cycles_io(uint16_t addr) {
         Yes     |  Reset  | C:1, C:3
         Yes     |   Set   | C:1, C:1, C:1, C:1
     */
+    if (!ula.do_contended) {
+        add_cycles(3);
+        return;
+    }
     if (addr >= 0x4000 && addr < 0x8000) {
         if (addr&1) {
             add_contended_cycles(); add_cycles(1);
@@ -273,7 +277,7 @@ void add_cycles_io(uint16_t addr) {
 }
 static inline uint8_t inZ80(uint16_t addr) {
     // very crude i know
-    if (addr >= 0x4000 && addr < 0x8000) { add_contended_cycles(); } add_cycles(1);
+    if (addr >= 0x4000 && addr < 0x8000 && ula.do_contended) { add_contended_cycles(); } add_cycles(1);
     uint8_t val;
     #ifdef AY_EMULATION
         if ((addr&0x8000) && !(addr&2)) {
@@ -311,7 +315,7 @@ static inline uint8_t inZ80(uint16_t addr) {
 
 static inline void outZ80(uint16_t addr, uint8_t val) {
     // very crude i know
-    if (addr >= 0x4000 && addr < 0x8000) { add_contended_cycles(); } add_cycles(1);
+    if (addr >= 0x4000 && addr < 0x8000 && ula.do_contended) { add_contended_cycles(); } add_cycles(1);
     if (!(addr&0x8000) && !(addr&2)) {
         // paging
         // 00DRGMMM

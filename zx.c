@@ -61,6 +61,10 @@ uint8_t *event_viewer;
 
 #include "io.h"
 
+uint32_t get_contended_cycles() {
+    return ula.contended_stolen_cycles;
+}
+
 void reset_audio_buffer_and_unpause() {
     ula.audio_buffer_read = 0;
     ula.audio_buffer_write = BUFFER_SIZE;
@@ -666,6 +670,7 @@ void main_zx() {
         do_events();
         return;
     }
+    ula.contended_stolen_cycles = 0;
     ula.did_frame = false;
     while (!ula.did_frame) {
         do_oneop();

@@ -50,6 +50,7 @@ struct ula_Struct {
     bool did_frame;
     uint16_t cycles_leftover;
     uint32_t debug_cycles;
+    uint32_t contended_stolen_cycles;
 };
 
 #define swap(a,b) { uint8_t temp = a; a = b; b = temp; }
@@ -98,6 +99,7 @@ static inline void add_contended_cycles() {
     if (scanline_cycle < 128) { // 24 + 128
         // "delay" the CPU by N cycles by just
         // adding to the cycles variable
+        ula.contended_stolen_cycles += scanline_cycle_lut[scanline_cycle&7];
         add_cycles(scanline_cycle_lut[scanline_cycle&7]);
     }
 }
