@@ -216,7 +216,7 @@ extern "C" {
     extern int get_hcount();
 }
 
-void do_disasm(bool *p_open, bool *enable_event) {
+void do_disasm(bool *p_open, bool *enable_event, bool *enable_event_bitmap) {
     int font_size = 13;
     ImGuiIO& io = ImGui::GetIO(); (void)io;
     ImGui::Begin("Z80 Debugger", p_open, ImGuiWindowFlags_NoScrollbar);
@@ -228,6 +228,8 @@ void do_disasm(bool *p_open, bool *enable_event) {
     ImGui::Text("Scanline: %3d   Cycle: %3d",get_vcount(),get_hcount());
 
     ImGui::Checkbox("Event Viewer",enable_event);
+    ImGui::SameLine();
+    ImGui::Checkbox("Bitmap Writes",enable_event_bitmap);
 
     ImGui::Separator();
     int rows = (int)(ImGui::GetWindowSize().y/io.FontGlobalScale/font_size/1.3f);

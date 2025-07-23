@@ -224,12 +224,6 @@ static inline void advance_ULA() {
     }
 }
 
-#define WRITE_EVENT(num) \
-    { \
-        size_t scanline = ula.scanline-((ula.cycles-(ula.cycles%228))/228); \
-        event_viewer[(ula.cycles%228)+(scanline*228)] = (num)+1; \
-    }
-
 void update_ayumi_state(struct ayumi* ay, uint8_t* r, uint8_t addr);
 
 #ifdef AY_EMULATION
@@ -238,7 +232,7 @@ void update_ayumi_state(struct ayumi* ay, uint8_t* r, uint8_t addr);
   #else
     uint8_t AY_regs[16];
   #endif
-uint8_t AY_ind;
+uint16_t AY_ind;
 struct ayumi AY_chip1;
   #ifdef AY_TURBOSOUND
     struct ayumi AY_chip2;
@@ -275,6 +269,7 @@ void add_cycles_io(uint16_t addr) {
         }
     }
 }
+
 static inline uint8_t inZ80(uint16_t addr) {
     // very crude i know
     if (addr >= 0x4000 && addr < 0x8000 && ula.do_contended) { add_contended_cycles(); } add_cycles(1);
@@ -283,13 +278,25 @@ static inline uint8_t inZ80(uint16_t addr) {
         if ((addr&0x8000) && !(addr&2)) {
             WRITE_EVENT(3);
             #ifdef AY_TURBOSOUND
-                val = AY_regs[AY_ind&0x1f];
+                #ifdef AY_TURBOSOUND_FM
+                    if (visible_windows.do_tsfm) {
+                        val = (
+                                (AY_ind<0x0e)
+                                ? AY_regs[(AY_ind&0xf)|(((AY_ind>>8)&1)<<4)]
+                                : read_opn(AY_ind&0xff,AY_ind>>8&1)
+                              );
+                        if ((AY_ind&(2<<8))==0)
+                            val = (val&0x7f) | (OPN_get_status(AY_ind>>8&1)&0x80);
+                    } else val = AY_regs[(AY_ind&0xf)|(((AY_ind>>8)&1)<<4)];
+                    #else
+                    val = AY_regs[(AY_ind&0xf)|(((AY_ind>>8)&1)<<4)];
+                #endif
             #else
                 val = AY_regs[AY_ind&0xf];
             #endif
             add_cycles_io(addr);
             return val;
-        }
+        } 
     #endif
     if (addr&1) {
         val = floating_bus(ula.cycles%228,ula.scanline);
@@ -334,21 +341,54 @@ static inline void outZ80(uint16_t addr, uint8_t val) {
     else if ((addr&0x8000) && !(addr&2)) {
         WRITE_EVENT(2);
         if (addr & 0x4000) {
-            // turbosound chip
-            if (val >= 16) {
-                // set AY chip (for TS)
-                AY_ind = (AY_ind&0x0f)|((val&0xf)<<4);
-            } else {
-                AY_ind = (AY_ind&0xf0)|(val&0xf);
-            }
+            #ifdef AY_TURBOSOUND_FM
+                if (visible_windows.do_tsfm) {
+                    // turbosound chip
+                    if ((val&0b11111000) == 0b11111000) {
+                        // set AY chip (for TS)
+                        AY_ind = (AY_ind&0x0ff)|((val&0x7)<<8);
+                    } else {
+                        AY_ind = (AY_ind&0xf00)|(val&0xff);                                         
+                    }   
+                } else {
+                    // turbosound chip
+                    if (val >= 16) {
+                        // set AY chip (for TS)
+                        AY_ind = (AY_ind&0x00f)|((val&0xf)<<8);
+                    } else {
+                        AY_ind = (AY_ind&0xf00)|(val&0xf);
+                    }
+                }
+            #else
+                // turbosound chip
+                if (val >= 16) {
+                    // set AY chip (for TS)
+                    AY_ind = (AY_ind&0x0ff)|((val&0xf)<<8);
+                } else {
+                    AY_ind = (AY_ind&0xf00)|(val&0xff);
+                }
+            #endif
         } else {
             #ifdef AY_TURBOSOUND
+                #ifdef AY_TURBOSOUND_FM
+                    write_opn(AY_ind&0xff,val,AY_ind>>8&1);
+                #endif
                 // write reg
-                AY_regs[AY_ind&0x1f] = val;
-                if (AY_ind&0x10)
-                    update_ayumi_state(&AY_chip2,&AY_regs[16],AY_ind&0xf);
-                else
-                    update_ayumi_state(&AY_chip1,AY_regs,AY_ind&0xf);
+                #ifndef AY_TURBOSOUND_FM
+                AY_regs[(AY_ind&0xf)|(((AY_ind>>8)&1)<<4)] = val;
+                #endif
+
+                #ifdef AY_TURBOSOUND_FM
+                if ((AY_ind&0xff)<0x10) {
+                    AY_regs[(AY_ind&0xf)|(((AY_ind>>8)&1)<<4)] = val;
+                #endif
+                    if (AY_ind&0x100)
+                        update_ayumi_state(&AY_chip2,&AY_regs[16],AY_ind&0xf);
+                    else
+                        update_ayumi_state(&AY_chip1,AY_regs,AY_ind&0xf);
+                #ifdef AY_TURBOSOUND_FM
+                }
+                #endif
             #else
                 // write reg
                 AY_regs[AY_ind&0xf] = val;

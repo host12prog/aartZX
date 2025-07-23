@@ -3,6 +3,7 @@
 
 #define AY_EMULATION
 #define AY_TURBOSOUND
+#define AY_TURBOSOUND_FM
 #define AY_CLOCK 1772700 // 1.772 mHz ((228*312*50)/2)
 
 #define REWIND_FRAMES (512)

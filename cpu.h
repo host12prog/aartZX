@@ -544,8 +544,8 @@ static inline void EDprefix(uint8_t opcode) {
         case 0xA3: { // outi
             add_cycles(1);
             uint8_t val = readZ80_EMU(REG_HL);
-            outZ80(REG_BC,val);
             regs.b = sub8(regs.b,1,0);
+            outZ80(REG_BC,val);
             write_r16(regs.h,regs.l,REG_HL+1);
             flags.n = val>>7;
             flags.c = (val+regs.l)>255;
@@ -558,13 +558,14 @@ static inline void EDprefix(uint8_t opcode) {
         case 0xB3: { // otir
             add_cycles(1);
             uint8_t val = readZ80_EMU(REG_HL);
+            regs.b = sub8(regs.b,1,0);
             outZ80(REG_BC,val);
             write_r16(regs.h,regs.l,REG_HL+1);
             flags.n = val>>7;
             flags.c = (val+regs.l)>255;
             //flags.h = flags.c;
             flags.p = parity(((val+regs.l)&7)^regs.b);
-            regs.b = sub8(regs.b,1,0);
+            //regs.b = sub8(regs.b,1,0);
             setXYF(regs.pc>>8);
             if (regs.b != 0) {
                 regs.pc -= 2;
@@ -576,8 +577,8 @@ static inline void EDprefix(uint8_t opcode) {
         case 0xAB: { // outd
             add_cycles(1);
             uint8_t val = readZ80_EMU(REG_HL);
-            outZ80(REG_BC,val);
             regs.b = sub8(regs.b,1,0);
+            outZ80(REG_BC,val);
             write_r16(regs.h,regs.l,REG_HL-1);
             flags.n = val>>7;
             flags.c = (val+regs.l)>255;
@@ -590,8 +591,9 @@ static inline void EDprefix(uint8_t opcode) {
         case 0xBB: { // otdr
             add_cycles(1);
             uint8_t val = readZ80_EMU(REG_HL);
-            outZ80(REG_BC,val);
             regs.b = sub8(regs.b,1,0);
+            outZ80(REG_BC,val);
+            //regs.b = sub8(regs.b,1,0);
             write_r16(regs.h,regs.l,REG_HL-1);
             flags.n = val>>7;
             flags.c = (val+regs.l)>255;

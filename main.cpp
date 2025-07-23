@@ -16,6 +16,7 @@
 #include "imgui_impl_opengl3.h"
 #include "portable-file-dialogs.h"
 #include <stdio.h>
+#include <stdbool.h>
 #include <iostream>
 #include <fstream>
 #include <SDL.h>
@@ -149,6 +150,8 @@ extern "C" {
         SHARED_BOOL disasm;
         float screen_scale;
         SHARED_BOOL do_event_viewer;
+        SHARED_BOOL do_event_viewer_bitmap;
+        SHARED_BOOL do_tsfm;
     };
     struct window_bool visible_windows; // misc.h
 }
@@ -382,12 +385,13 @@ void do_mem_fade() {
     }
 }
 
-extern void do_disasm(bool *p_open, bool *enable_event);
+extern void do_disasm(bool *p_open, bool *enable_event, bool *enable_event_bitmap);
 
 // Main code
 int main(int argc, char *argv[]) {
     
     selected_memory_type = 0;
+    visible_windows.do_tsfm = false;
     visible_windows.memviewer = false;
     visible_windows.imgui_debugger = false;
     visible_windows.settings = true;
@@ -412,6 +416,7 @@ int main(int argc, char *argv[]) {
 
     visible_windows.screen_scale = 0.94f;
     visible_windows.do_event_viewer = false;
+    visible_windows.do_event_viewer_bitmap = false;
 
     init_zx(argc, argv, true);
     AY_set_pan(visible_windows.aypan);
@@ -579,6 +584,10 @@ int main(int argc, char *argv[]) {
                 if (stereo_sep_changed) {
                     AY_set_pan(visible_windows.aypan);
                 }
+
+                #ifdef AY_TURBOSOUND_FM
+                    ImGui::Checkbox("Enable TurboSound FM (2xYM2203)",(bool *)&visible_windows.do_tsfm);
+                #endif
             #endif
 
             ImGui::Separator();
@@ -673,7 +682,7 @@ int main(int argc, char *argv[]) {
             draw_list->AddRectFilled(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), IM_COL32(0xFF,0x80,0xFF,0xFF));
             draw_list->AddRect(ImVec2(x-res_rect, y-res_rect), ImVec2(x+res_rect, y+res_rect), IM_COL32(0x80,0x40,0x80,0xFF), 0, 0, res_rect/2.0f);\
             // render I/O writes
-            static std::string event_type[] = {"ULA Write","ULA Read","AY Write","AY Read","Paging Write"};
+            static std::string event_type[] = {"ULA Write","ULA Read","AY Write","AY Read","Paging Write","Bitmap Write","Shadow Bitmap Write"};
             int i = 0;
             for (int yp = 0; yp < 311; yp++) {
                 for (int xp = 0; xp < 228; xp++) {
@@ -701,6 +710,14 @@ int main(int argc, char *argv[]) {
                             case 4: // paging write
                                 col_outer = IM_COL32(0x00,0x6E,0x6E,0xFF);
                                 col_inner = IM_COL32(0x00>>1,0x6E>>1,0x6E>>1,0xFF);
+                                break;
+                            case 5: // bitmap write
+                                col_outer = IM_COL32(0xB4,0x7A,0xDA,0xFF);
+                                col_inner = IM_COL32(0xB4>>1,0x7A>>1,0xDA>>1,0xFF);
+                                break;
+                            case 6: // shadow bitmap write
+                                col_outer = IM_COL32(0xC9,0x29,0x29,0xFF);
+                                col_inner = IM_COL32(0xC9>>1,0x29>>1,0x29>>1,0xFF);
                                 break;
                             default:
                                 break;
@@ -865,7 +882,7 @@ int main(int argc, char *argv[]) {
             ImGui::End();
         }
 
-        if (visible_windows.disasm) do_disasm((bool *)&visible_windows.disasm,(bool *)&visible_windows.do_event_viewer);
+        if (visible_windows.disasm) do_disasm((bool *)&visible_windows.disasm,(bool *)&visible_windows.do_event_viewer,(bool *)&visible_windows.do_event_viewer_bitmap);
 
         ImGui::Render();
 

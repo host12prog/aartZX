@@ -22,12 +22,32 @@ add_library(imgui STATIC
     ${ROOT}/imgui_tables.cpp
     ${ROOT}/imgui_widgets.cpp
 )
+
+
+set(YMFM_DIR ${CMAKE_SOURCE_DIR}/ymfm/src)
+
+add_library(ymfm STATIC
+	${YMFM_DIR}/ymfm.h
+	${YMFM_DIR}/ymfm_adpcm.cpp
+	${YMFM_DIR}/ymfm_adpcm.h
+	${YMFM_DIR}/ymfm_fm.h
+	${YMFM_DIR}/ymfm_ssg.cpp
+	${YMFM_DIR}/ymfm_ssg.h
+	${YMFM_DIR}/ymfm_opn.cpp
+	${YMFM_DIR}/ymfm_opn.h
+)
+
 target_include_directories(imgui PUBLIC
     $<BUILD_INTERFACE:${ROOT}>
-    $<INSTALL_INTERFACE:include>)
+    $<INSTALL_INTERFACE:include>
+)
+
+target_include_directories(ymfm PUBLIC
+    $<BUILD_INTERFACE:${YMFM_DIR}>
+)
 
 set(INSTALL_TARGETS imgui)
-set(INSTALL_HEADERS ${ROOT}/imgui.h ${ROOT}/imconfig.h)
+set(INSTALL_HEADERS ${ROOT}/imgui.h ${ROOT}/imconfig.h ${YMFM_DIR}/ymfm.h ${YMFM_DIR}/ymfm_opn.h)
 
 foreach(BACKEND opengl3 sdl2)
 	set(NAME imgui_impl_${BACKEND})
@@ -52,9 +72,10 @@ add_executable(
     main.cpp
 	disasm.cpp
     ayumi.c
+	ymfm_interface.cpp
     zx.c
 )
 
 target_link_libraries(aartZX
-	PRIVATE imgui imgui_impl_sdl2 imgui_impl_opengl3 SDL2::SDL2-static SDL2::SDL2main
+	PRIVATE ymfm imgui imgui_impl_sdl2 imgui_impl_opengl3 SDL2::SDL2-static SDL2::SDL2main
 )

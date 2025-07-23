@@ -2,6 +2,7 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <SDL2/SDL.h>
 #include <SDL2/SDL_render.h>
 #include <SDL2/SDL_surface.h>
@@ -13,7 +14,7 @@
 #include "config.h"
 #include "zx_128k_rom.h"
 
-typedef enum { false, true } bool; // booleans yay
+//typedef enum { false, true } bool; // booleans yay
 
 struct window_bool {
     SHARED_BOOL memviewer;
@@ -34,9 +35,18 @@ struct window_bool {
     SHARED_BOOL disasm;
     float screen_scale;
     SHARED_BOOL do_event_viewer;
+    SHARED_BOOL do_event_viewer_bitmap;
+    SHARED_BOOL do_tsfm;
 };
 
 extern struct window_bool visible_windows;
+
+#define WRITE_EVENT(num) \
+    { \
+        size_t scanline = ula.scanline-((ula.cycles-(ula.cycles%228))/228); \
+        event_viewer[(ula.cycles%228)+(scanline*228)] = (num)+1; \
+    }
+uint8_t *event_viewer;
 
 #include "ayumi.h"
 #include "misc.h"
@@ -57,7 +67,16 @@ bool rewind_pressed;
 bool pause_pressed;
 bool paused;
 bool actually_rewind;
-uint8_t *event_viewer;
+
+#ifdef AY_TURBOSOUND_FM
+extern void init_opn();
+extern void write_opn(uint8_t addr, uint8_t val, uint8_t cs);
+extern uint8_t read_opn(uint8_t addr, uint8_t cs);
+extern void free_opn();
+extern void OPN_advance_clock();
+extern short OPN_get_sample();
+extern uint8_t OPN_get_status(uint8_t cs);
+#endif
 
 #include "io.h"
 
@@ -186,7 +205,7 @@ void do_rewind() {
                 time_rewind[rewind_frame] > -1) {
 
                 if ((mem_pos_rewind[rewind_frame] <= last_no_press_mem_pos) && mem_pos_underflow) {
-                        goto end_rewind;
+                    goto end_rewind;
                 }
 
                 rewind_frame--;
@@ -202,7 +221,7 @@ void do_rewind() {
 
                 if ((mem_pos_rewind[rewind_frame] <= last_no_press_mem_pos) && mem_pos_underflow) {
                     goto end_rewind;
-            }
+                }
 
 
                 actually_rewind = true;
@@ -509,6 +528,9 @@ void init_zx(int argc, char *argv[], bool init_files) {
             ayumi_set_pan(&AY_chip1, 2, 0, 0);
         #endif
         AY_set_pan(visible_windows.aypan);
+        #ifdef AY_TURBOSOUND_FM
+            init_opn();
+        #endif
     #endif
 
     memset(ula.key_matrix_buf,0,sizeof(ula.key_matrix_buf)); // clear key matrix buffer
@@ -611,6 +633,19 @@ skip_step:
                 ayumi_remove_dc(&AY_chip2);
             #endif
 
+            #ifdef AY_TURBOSOUND_FM
+            for (int i = 0; i < 18; i++) OPN_advance_clock();
+
+            register int16_t opn_sample = OPN_get_sample(); 
+            if (!visible_windows.do_tsfm) opn_sample = 0;
+
+            ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
+                CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.left*(8192-1024)*2.0)
+                +(int16_t)(AY_chip2.left*(8192-1024)*2.0)+((int16_t)opn_sample))*audio_volume,-32767,32767);
+            ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
+                CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.right*(8192-1024)*2.0)
+                +(int16_t)(AY_chip2.right*(8192-1024)*2.0)+((int16_t)opn_sample))*audio_volume,-32767,32767);
+            #else
             #ifdef AY_TURBOSOUND
             ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
                 CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.left*(8192-1024)*2.0)
@@ -623,6 +658,7 @@ skip_step:
                 CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.left*(8192-1024)*2.0))*audio_volume,-32767,32767);
             ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
                 CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.right*(8192-1024)*2.0))*audio_volume,-32767,32767);
+            #endif
             #endif
         #else
             ula.audio_buffer_temp[ula.audio_buffer_ind++] = ula.beeper_filter;
@@ -694,6 +730,9 @@ void deinit_zx(bool deinit_file) {
     free(time_rewind);
     free(mem_pos_rewind);
     free(event_viewer);
+    #ifdef AY_TURBOSOUND_FM
+        free_opn();
+    #endif
 }
 
 void set_YM(bool is_ym, int chip) {

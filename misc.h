@@ -214,6 +214,7 @@ void writeZ80(uint16_t addr, uint8_t val) {
         case 0x4000: { // RAM bank 5 (contended)
             if (ula.do_contended) add_contended_cycles();
             mem[(addr&0x3fff)|(5<<14)] = val;
+            if (visible_windows.do_event_viewer && visible_windows.do_event_viewer_bitmap) WRITE_EVENT(5);
             if (visible_windows.write) mem_highlight[(addr&0x3fff)|(5<<14)] = 0xFF000000|visible_windows.write_col;
             break;
         }
@@ -225,6 +226,13 @@ void writeZ80(uint16_t addr, uint8_t val) {
 
         case 0xC000: { // RAM bank X (*COULD* be contended based off current RAM bank)
             if (ula.do_contended && (ula.ram_bank&1)) add_contended_cycles();
+            if (visible_windows.do_event_viewer && visible_windows.do_event_viewer_bitmap) {
+                if ((ula.ram_bank&7) == 5) {
+                    WRITE_EVENT(5);
+                } else if ((ula.ram_bank&7) == 7) {
+                    WRITE_EVENT(6);
+                }
+            }
             mem[(addr&0x3fff)|((ula.ram_bank&7)<<14)] = val;
             if (visible_windows.write) mem_highlight[(addr&0x3fff)|((ula.ram_bank&7)<<14)] = 0xFF000000|visible_windows.write_col;
             break;

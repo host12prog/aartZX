@@ -6,6 +6,7 @@ a modern ZX Spectrum emulator in C, C++, SDL2 and Dear ImGui
 ## features
 
 - ayumi AY sound emulation with TurboSound 2xAY support!
+- TurboSound FM (2xYM2203) sound emulation with ymfm!
 - Modular interface using Dear ImGui
 - Memory Debugger with customizable Read/Write/Execution labels!
 - Customizable AY stereo settings
