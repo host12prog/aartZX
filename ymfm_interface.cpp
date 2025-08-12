@@ -59,9 +59,9 @@ extern "C" {
 // for zx.c to interface with ymfm...
 void init_opn() {
     fm=new ymfm::ym2203(iface);
-    fm->set_fidelity(ymfm::OPN_FIDELITY_MAX);
+    fm->set_fidelity(ymfm::OPN_FIDELITY_MIN);
     fm2=new ymfm::ym2203(iface2);
-    fm2->set_fidelity(ymfm::OPN_FIDELITY_MAX);
+    fm2->set_fidelity(ymfm::OPN_FIDELITY_MIN);
     fm->reset();
     fm2->reset();
 }
@@ -90,8 +90,8 @@ void OPN_advance_clock() {
     iface2.clock(24);
 }
 
-short OPN_get_sample() {
-    return (fmout.data[0]/2)+(fmout2.data[0]/2);
+int OPN_get_sample() {
+    return (int)fmout.data[0]+(int)fmout2.data[0];
 }
 
 uint8_t OPN_get_status(uint8_t cs) {

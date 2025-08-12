@@ -74,7 +74,7 @@ extern void write_opn(uint8_t addr, uint8_t val, uint8_t cs);
 extern uint8_t read_opn(uint8_t addr, uint8_t cs);
 extern void free_opn();
 extern void OPN_advance_clock();
-extern short OPN_get_sample();
+extern int OPN_get_sample();
 extern uint8_t OPN_get_status(uint8_t cs);
 #endif
 
@@ -385,6 +385,7 @@ void load_file(char *file) {
 }
 
 void AY_set_pan(int pan_type);
+void AY_set_clock(bool clock_mode);
 
 void init_zx(int argc, char *argv[], bool init_files) {
     audio_paused = false;
@@ -491,6 +492,9 @@ void init_zx(int argc, char *argv[], bool init_files) {
 
     // init ULA audio
     ula.audio_cycles = 0;
+    #ifdef AY_TURBOSOUND_FM
+        ula.audio_cycles_fm = 0;
+    #endif
     ula.audio_buffer_read = 0;
     ula.audio_buffer_write = BUFFER_SIZE;
     ula.beeper_filter = 0;
@@ -530,6 +534,7 @@ void init_zx(int argc, char *argv[], bool init_files) {
         AY_set_pan(visible_windows.aypan);
         #ifdef AY_TURBOSOUND_FM
             init_opn();
+            AY_set_clock(visible_windows.do_tsfm);
         #endif
     #endif
 
@@ -622,6 +627,18 @@ skip_step:
     // audio buffer
     int16_t beeper = (ula.ULA_FE>>4&1?((8192-1024)*2):0);
     ula.beeper_filter = ((ula.beeper_filter*(ula.audio_cycles_beeper*2))+beeper)/(ula.audio_cycles_beeper*2+1);
+
+    #ifdef AY_TURBOSOUND_FM
+        if (ula.audio_cycles_fm >= 291) { // (3500000/48000*4)
+            ula.audio_cycles_fm -= 291;
+            #ifdef AY_EMULATION
+                OPN_advance_clock();
+                OPN_advance_clock();
+                OPN_advance_clock();
+            #endif
+        }
+    #endif
+
     if (ula.audio_cycles >= 295) { // (3545400/48000*4)
         ula.audio_cycles -= 295;
         #ifdef AY_EMULATION
@@ -634,17 +651,15 @@ skip_step:
             #endif
 
             #ifdef AY_TURBOSOUND_FM
-            for (int i = 0; i < 18; i++) OPN_advance_clock();
-
-            register int16_t opn_sample = OPN_get_sample(); 
+            int opn_sample = OPN_get_sample(); 
             if (!visible_windows.do_tsfm) opn_sample = 0;
 
             ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
                 CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.left*(8192-1024)*2.0)
-                +(int16_t)(AY_chip2.left*(8192-1024)*2.0)+((int16_t)opn_sample))*audio_volume,-32767,32767);
+                +(int16_t)(AY_chip2.left*(8192-1024)*2.0)+(opn_sample))*audio_volume,-32767,32767);
             ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
                 CLAMP((ula.beeper_filter+(int16_t)(AY_chip1.right*(8192-1024)*2.0)
-                +(int16_t)(AY_chip2.right*(8192-1024)*2.0)+((int16_t)opn_sample))*audio_volume,-32767,32767);
+                +(int16_t)(AY_chip2.right*(8192-1024)*2.0)+(opn_sample))*audio_volume,-32767,32767);
             #else
             #ifdef AY_TURBOSOUND
             ula.audio_buffer_temp[ula.audio_buffer_ind++] = 
@@ -676,12 +691,16 @@ skip_step:
 
             #ifdef AUDIO_SYNC
                 int now = SDL_GetTicks();
-                if (ula.time == -69) ula.time = now + (1000/50);
+                bool init_time = false;
+                if (ula.time == -69) {
+                    init_time = true;
+                    ula.time = now + (1000/50);
+                }
                 if (ula.time > now) {
                     now = ula.time - now;
                     SDL_Delay(now);
                 }
-                ula.time += 1000/50;
+                if (!init_time) ula.time += 1000/50;
                 do_rewind();
             #endif
         }
@@ -794,6 +813,17 @@ void AY_set_pan(int pan_type) {
                     ayumi_set_pan(&AY_chip2, 2, 0.5, 0);
                     break;
             }
+        #endif
+    #endif
+}
+
+void AY_set_clock(bool clock_mode) {
+    #ifdef AY_EMULATION
+        #ifdef AY_TURBOSOUND
+            ayumi_set_clock(&AY_chip2, clock_mode?TSFM_CLOCK:AY_CLOCK, SAMPLE_RATE);
+            ayumi_set_clock(&AY_chip1, clock_mode?TSFM_CLOCK:AY_CLOCK, SAMPLE_RATE);
+        #else
+            //ayumi_set_clock(&AY_chip1, AY_CLOCK, SAMPLE_RATE);
         #endif
     #endif
 }

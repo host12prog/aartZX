@@ -66,6 +66,7 @@ target_link_libraries(imgui_impl_opengl3 PRIVATE OpenGL::GL)
 target_link_libraries(imgui_impl_sdl2 PRIVATE SDL2::SDL2-static)
 
 add_compile_definitions(ImTextureID=void*)
+add_compile_options(-O2)
 
 add_executable(
     aartZX 

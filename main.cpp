@@ -74,6 +74,7 @@ extern "C" {
     extern void writeZ80(uint16_t addr, uint8_t val);
     extern void set_YM(bool is_ym, int chip);
     extern void AY_set_pan(int pan_type); // for stereo/mono
+    extern void AY_set_clock(bool clock_mode); // for TSFM vs 128k AY clock speeds
     extern uint32_t cur_mempos_rewind;
     extern bool rewind_pressed;
     extern bool actually_rewind;
@@ -419,7 +420,6 @@ int main(int argc, char *argv[]) {
     visible_windows.do_event_viewer_bitmap = false;
 
     init_zx(argc, argv, true);
-    AY_set_pan(visible_windows.aypan);
 
     // Setup SDL
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_TIMER | SDL_INIT_GAMECONTROLLER) != 0)
@@ -512,6 +512,13 @@ int main(int argc, char *argv[]) {
     load_settings();
     save_settings(); // for updating config files from older versions
 
+    #ifdef AY_EMULATION
+        AY_set_pan(visible_windows.aypan);
+        #ifdef AY_TURBOSOUND_FM
+            AY_set_clock(visible_windows.do_tsfm);
+        #endif
+    #endif
+
     GLuint my_image_texture = 0;
     memset(pixels,0xff,sizeof(uint32_t)*320*256);
     LoadTextureFromMemory(&my_image_texture);
@@ -586,7 +593,11 @@ int main(int argc, char *argv[]) {
                 }
 
                 #ifdef AY_TURBOSOUND_FM
-                    ImGui::Checkbox("Enable TurboSound FM (2xYM2203)",(bool *)&visible_windows.do_tsfm);
+                    bool tsfm_changed = ImGui::Checkbox("Enable TurboSound FM (2xYM2203)",(bool *)&visible_windows.do_tsfm);
+                    if (tsfm_changed) {
+                        // TSFM has a seperate clock crystal running at **exactly** 3.5mHz apparently(?)
+                        AY_set_clock(visible_windows.do_tsfm);
+                    }
                 #endif
             #endif
 

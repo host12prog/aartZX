@@ -33,6 +33,9 @@ struct ula_Struct {
     bool do_contended;
     uint16_t cycles;
     uint16_t audio_cycles;
+    #ifdef AY_TURBOSOUND_FM
+    uint16_t audio_cycles_fm;
+    #endif
     uint8_t audio_cycles_beeper;
     uint16_t scanline;
     int frame, time;
@@ -80,6 +83,9 @@ static inline void add_cycles(uint8_t cycles) {
     ula.audio_cycles += (uint16_t)cycles<<2;
     ula.audio_cycles_beeper += cycles;
     ula.debug_cycles += cycles;
+    #ifdef AY_TURBOSOUND_FM
+    ula.audio_cycles_fm += (uint16_t)cycles<<2;
+    #endif
 }
 
 // for ZX Spectrum memory contention
@@ -89,6 +95,9 @@ static inline void sub_cycles(uint8_t cycles) {
     ula.audio_cycles -= (uint16_t)cycles<<2;
     ula.audio_cycles_beeper -= cycles;
     ula.debug_cycles -= cycles;
+    #ifdef AY_TURBOSOUND_FM
+    ula.audio_cycles_fm -= (uint16_t)cycles<<2;
+    #endif
 }
 
 

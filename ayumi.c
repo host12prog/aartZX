@@ -154,6 +154,10 @@ int ayumi_configure(struct ayumi* ay, int is_ym, double clock_rate, int sr) {
   return ay->step < 1;
 }
 
+void ayumi_set_clock(struct ayumi* ay, double clock_rate, int sr) {
+  double step = clock_rate / (sr * 8 * DECIMATE_FACTOR);
+  if (step < 1) ay->step = step;
+}
 
 void ayumi_set_ym(struct ayumi* ay, int is_ym) {
   ay->dac_table = is_ym ? YM_dac_table : AY_dac_table;
