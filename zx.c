@@ -42,10 +42,11 @@ struct window_bool {
 extern struct window_bool visible_windows;
 
 #define WRITE_EVENT(num) \
-    { \
+    if (visible_windows.do_event_viewer) { \
         size_t scanline = ula.scanline-((ula.cycles-(ula.cycles%228))/228); \
         event_viewer[(ula.cycles%228)+(scanline*228)] = (num)+1; \
     }
+
 uint8_t *event_viewer;
 
 #include "ayumi.h"
@@ -503,7 +504,7 @@ void init_zx(int argc, char *argv[], bool init_files) {
     ula.audio_buffer_write = BUFFER_SIZE;
     ula.beeper_filter = 0;
     ula.audio_buffer_ind = 0;
-    audio_volume = 1;
+    //audio_volume = 1;
     memset(ula.audio_buffer,0,sizeof(ula.audio_buffer));
 
     // init AY if enabled
@@ -561,7 +562,8 @@ void init_zx(int argc, char *argv[], bool init_files) {
     dev = SDL_OpenAudio(&wanted, NULL);
     SDL_PauseAudio(0);
 
-    ula.time = -69; //DL_GetTicks() + 20;
+    //ula.time = -69; //DL_GetTicks() + 20;
+    reset_audio_buffer_and_unpause();
 }
 
 uint8_t op;

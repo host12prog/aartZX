@@ -187,7 +187,7 @@ static inline void advance_ULA() {
 
     if (ula.scanline == 0) { // fire VBLANK at the start of each frame
         regs.has_int = 0xff;
-        memset(event_viewer,0,228*311*sizeof(uint8_t));
+        if (visible_windows.do_event_viewer) memset(event_viewer,0,228*311*sizeof(uint8_t));
         // TODO: remove this line
         // regs.r = 255;
     }

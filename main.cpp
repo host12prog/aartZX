@@ -419,6 +419,8 @@ int main(int argc, char *argv[]) {
     visible_windows.do_event_viewer = false;
     visible_windows.do_event_viewer_bitmap = false;
 
+    audio_volume = 1;
+
     init_zx(argc, argv, true);
 
     // Setup SDL
