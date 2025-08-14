@@ -62,13 +62,13 @@ extern "C" {
     extern bool paused;
     extern void reset_audio_buffer_and_unpause();
     extern float audio_volume;
-    void load_file(char *file);
+    extern void load_file(char *file);
     extern uint8_t mem[131072];
     extern uint32_t *mem_highlight;
     extern uint8_t *zx_rom;
     extern uint32_t *zx_rom_highlight;
-    uint8_t get_ram_bank();
-    uint8_t get_scr_rom_bank(); // the banks are combined in a bit-field
+    extern uint8_t get_ram_bank();
+    extern uint8_t get_scr_rom_bank(); // the banks are combined in a bit-field
     extern uint8_t readZ80(uint16_t addr);
     extern uint8_t readZ80_no_highlight(uint16_t addr);
     extern void writeZ80(uint16_t addr, uint8_t val);

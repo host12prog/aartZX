@@ -366,10 +366,14 @@ void read_SNA() {
 }
 
 void load_file(char *file) {
+    printf("loading file \"%s\"\n", file);
+    printf("do_tap = %s;\n", do_tap?"true":"false");
     if (do_tap) fclose(tap);
+    if (do_tap) printf("wow, it didn't crash at this point! [after fclose(tap)]\n");
     do_tap = true;
     tap_file_size = 0;
     tap = fopen(file,"rb");
+    printf("did fopen(\"%s\",\"rb\");\n",file);
 
     const char *ext_str = get_filename_ext(file);
     file_ext = TAP_FILE;
