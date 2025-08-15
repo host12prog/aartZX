@@ -68,7 +68,7 @@ target_link_libraries(imgui_impl_sdl2 PRIVATE SDL2::SDL2-static)
 add_compile_definitions(ImTextureID=void*)
 # add_compile_options(-O2)
 if (MSVC)
-	add_compile_options(/fsanitize=address)
+	add_compile_options(/annotate:no /fsanitize=address)
 endif()
 
 add_executable(
