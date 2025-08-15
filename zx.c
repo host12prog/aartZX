@@ -268,8 +268,14 @@ SDL_Renderer* get_SDL_renderer();
 
 // https://stackoverflow.com/questions/5309471/getting-file-extension-in-c#5309508
 const char *get_filename_ext(const char *filename) {
+    printf("entering get_filename_ext\n");
     const char *dot = strrchr(filename, '.');
-    if(!dot || (dot == filename)) return "";
+    printf("now at dot... also strrchr\n");
+    if(!dot || (dot == filename)) {
+        printf("returning null");
+        return "";
+    }
+    printf("returning dot + 1");
     return dot + 1;
 }
 
