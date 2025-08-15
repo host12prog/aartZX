@@ -120,6 +120,7 @@ jobs:
         pushd ${{ steps.package-identify.outputs.filename }}
         ls ${binPath}/${{ matrix.build_type }}
         cp -vr ${binPath}/${{ matrix.build_type }}/aartZX.exe aartZX.exe
+        cp -vr ${binPath}/${{ matrix.build_type }}/aartZX.pdb aartZX.pdb
         sha256sum ${binPath}/${{ matrix.build_type }}/aartZX.exe > checksum.txt
         popd
   
