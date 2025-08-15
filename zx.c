@@ -372,7 +372,7 @@ void read_SNA() {
     }
 }
 
-void load_file(char *file) {
+void load_file(const char *file) {
     printf("loading file \"%s\"\n", file);
     printf("do_tap = %s;\n", do_tap?"true":"false");
     if (do_tap) fclose(tap);
