@@ -67,13 +67,6 @@ target_link_libraries(imgui_impl_sdl2 PRIVATE SDL2::SDL2-static)
 
 add_compile_definitions(ImTextureID=void*)
 # add_compile_options(-O2)
-if (MSVC)
-	target_compile_options(aartZX PRIVATE /annotate:yes /fsanitize=address)
-    target_compile_options(imgui PRIVATE /annotate:yes /fsanitize=address)
-    target_compile_options(ymfm PRIVATE /annotate:yes /fsanitize=address)
-    target_compile_options(imgui_impl_opengl3 PRIVATE /annotate:yes /fsanitize=address)
-    target_compile_options(imgui_impl_sdl2 PRIVATE /annotate:yes /fsanitize=address)
-endif()
 
 add_executable(
     aartZX 
@@ -83,6 +76,14 @@ add_executable(
 	ymfm_interface.cpp
     zx.c
 )
+
+if (MSVC)
+	target_compile_options(aartZX PRIVATE /annotate:yes /fsanitize=address)
+    target_compile_options(imgui PRIVATE /annotate:yes /fsanitize=address)
+    target_compile_options(ymfm PRIVATE /annotate:yes /fsanitize=address)
+    target_compile_options(imgui_impl_opengl3 PRIVATE /annotate:yes /fsanitize=address)
+    target_compile_options(imgui_impl_sdl2 PRIVATE /annotate:yes /fsanitize=address)
+endif()
 
 target_link_libraries(aartZX
 	PRIVATE ymfm imgui imgui_impl_sdl2 imgui_impl_opengl3 SDL2::SDL2-static SDL2::SDL2main
