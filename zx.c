@@ -377,9 +377,12 @@ void load_file(char *file) {
     printf("did fopen(\"%s\",\"rb\");\n",file);
 
     const char *ext_str = get_filename_ext(file);
+    printf("got ext_str: %s\n", ext_str);
     file_ext = TAP_FILE;
+    printf("set file_ext: TAP\n");
     // if (strcmp(ext_str,"tap") == 0) file_ext = TAP_FILE;
     if (strcmp(ext_str,"sna") == 0) file_ext = SNA_FILE;
+    printf("set file_ext: SNA\n");
 
     // get file size
     fseek(tap, 0L, SEEK_END);
