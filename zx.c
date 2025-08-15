@@ -413,7 +413,7 @@ void init_zx(int argc, char *argv[], bool init_files) {
             const char *ext_str = get_filename_ext(argv[1]);
             file_ext = TAP_FILE;
             // if (strcmp(ext_str,"tap") == 0) file_ext = TAP_FILE;
-            if (strcmp(ext_str,"sna") == 0) file_ext = SNA_FILE;
+            if (strncmp(ext_str,"sna",3) == 0) file_ext = SNA_FILE;
             // get file size
             fseek(tap, 0L, SEEK_END);
             tap_file_size = (int)ftell(tap);
