@@ -387,7 +387,7 @@ void load_file(char *file) {
     file_ext = TAP_FILE;
     printf("set file_ext: TAP\n");
     // if (strcmp(ext_str,"tap") == 0) file_ext = TAP_FILE;
-    if (strcmp(ext_str,"sna") == 0) file_ext = SNA_FILE;
+    if (strncmp(ext_str,"sna",3) == 0) file_ext = SNA_FILE;
     printf("set file_ext: SNA\n");
 
     // get file size
